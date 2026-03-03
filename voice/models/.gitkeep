@@ -1,0 +1,4 @@
+# Models are downloaded at setup time — not committed to git.
+# Required files:
+#   vosk-model-small-en-us-0.15/   (download from https://alphacephei.com/vosk/models)
+#   ableware_wakeword.onnx          (train with OpenWakeWord or use a compatible model)

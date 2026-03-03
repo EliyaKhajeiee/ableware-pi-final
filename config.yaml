@@ -1,0 +1,30 @@
+# Ableware Voice Control System — Central Configuration
+# Edit server_ip and ports to match your LAN setup.
+
+server:
+  ip: "192.168.1.56"         # IP of the simulation machine on LAN
+  hub_port: 8000             # FastAPI command hub (WebSocket + dashboard)
+  sim_port: 8001             # Simulation stub HTTP API
+
+voice:
+  wake_word_model: "models/ableware_wakeword.onnx"
+  vosk_model: "models/vosk-model-small-en-us-0.15"
+  wake_word_threshold: 0.5   # Confidence threshold (0-1) for wake word detection
+  listen_timeout_s: 3.0      # Seconds to wait for a command after wake word
+  sample_rate: 16000         # Hz — required by both Vosk and OpenWakeWord
+  chunk_size: 1280           # Frames per audio chunk (80ms at 16kHz)
+
+actuator:
+  stroke_length: 0.0254      # 1 inch in meters
+  step_size: 0.0025          # 2.5 mm per UP/DOWN command
+  max_force: 500.0           # Newtons
+  load_mass: 80.0            # kg (approximate user weight)
+
+simulation:
+  physics_dt: 0.01           # Physics loop time step (10ms)
+
+feedback:
+  wake_beep_freq: 880        # Hz — double beep on wake word detection
+  confirm_beep_freq: 1047    # Hz — single beep on command sent
+  error_beep_freq: 220       # Hz — low beep on error/timeout
+  beep_duration_ms: 150      # Duration of each beep tone
