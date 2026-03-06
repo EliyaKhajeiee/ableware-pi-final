@@ -24,9 +24,10 @@ The hub is the only thing that talks to both the Pi and the simulation. The Pi a
 | Component | Machine | How to start |
 |---|---|---|
 | Hub + Dashboard | Laptop | `python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000` |
-| Simulation stub | Laptop | `python3 -m uvicorn simulation_stub:app --port 8001` (run from `lift_actuator_sim/`) || Voice client | Pi | `python3 voice/main.py` |
+| 3D Simulation   | Laptop | `python3 lift_actuator_sim/wheelchair_sim_3d.py --serve` |
+| Voice client    | Pi     | `python3 voice/main.py` |
 
-Start order: simulation → hub → Pi client.
+Start order: 3D simulation → hub → Pi client.
 
 The hub serves the built dashboard at `http://localhost:8000`. No separate frontend server needed.
 
@@ -76,10 +77,9 @@ Say "Ableware" to wake it, then say a command: **up, down, start, stop, left, ri
 
 If you're working on the simulation side and don't have a Pi, you don't need one. The dashboard has manual control buttons that send the same commands the Pi would send.
 
-1. Start the simulation stub:
+1. Start the 3D simulation (opens the PyBullet window and listens for hub commands):
 ```bash
-cd lift_actuator_sim
-python3 -m uvicorn simulation_stub:app --port 8001
+python3 lift_actuator_sim/wheelchair_sim_3d.py --serve
 ```
 
 2. Start the hub:
@@ -89,13 +89,20 @@ python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000
 
 3. Open `http://localhost:8000` in a browser.
 
-Use the UP / DOWN / START / STOP buttons in the dashboard. Commands go through the same hub → simulation path that voice commands use. The Pi badge will show disconnected — that's fine.
+Use the UP / DOWN / START / STOP buttons in the dashboard. Commands flow: dashboard → hub → 3D sim. The PyBullet window shows the sling moving in real time. The Pi badge will show disconnected — that's fine.
 
-The simulation stub is in `lift_actuator_sim/simulation_stub.py`. It exposes:
+The 3D simulation exposes the same API as the stub:
 - `POST /command` — accepts `{"command": "UP"}` etc.
 - `GET /state` — returns current actuator + controller state
 
 The hub polls `/state` every 250ms and pushes updates to the dashboard over WebSocket.
+
+The sliders in the PyBullet window still control user weight, max force, and sim speed — they just no longer control the lift target (the hub does that).
+
+If you want to run without the PyBullet window (e.g. on a headless server), you can still use the old stub:
+```bash
+cd lift_actuator_sim && python3 -m uvicorn simulation_stub:app --port 8001
+```
 
 ---
 

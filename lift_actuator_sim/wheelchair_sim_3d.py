@@ -37,6 +37,11 @@ from actuator import LinearActuator
 from load import UserLoad
 from controller import LiftController
 
+import json as _json
+import queue as _queue
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 
 # ── Geometry constants (metres, Z-up) ─────────────────────────────────────
 
@@ -216,6 +221,62 @@ def _recolor(body_id, rgba):
 
 
 WHEEL_ORN = _q(math.pi / 2, 0, 0)   # lay cylinder on its side
+
+
+# ── Network API (used when running with --serve) ───────────────────────────
+
+STEP_SIZE = 0.0025   # metres per UP/DOWN command (matches simulation_stub.py)
+
+_cmd_queue: _queue.Queue = _queue.Queue()
+_sim_ref = None      # holds the active WheelchairLiftSim3D instance in serve mode
+
+
+class _SimAPIHandler(BaseHTTPRequestHandler):
+    """Minimal HTTP handler exposing /command and /state for the Ableware hub."""
+
+    def do_POST(self):
+        if self.path != '/command':
+            self._respond(404, {'error': 'not found'})
+            return
+        length = int(self.headers.get('Content-Length', 0))
+        body = _json.loads(self.rfile.read(length)) if length else {}
+        _cmd_queue.put(body.get('command', '').upper())
+        self._respond(200, {'status': 'ok'})
+
+    def do_GET(self):
+        if self.path == '/state':
+            sim = _sim_ref
+            if sim is None:
+                self._respond(503, {'error': 'sim not ready'})
+                return
+            act  = sim.act_L
+            ctrl = sim.ctrl
+            self._respond(200, {
+                'position':          act.position,
+                'velocity':          act.velocity,
+                'acceleration':      act.acceleration,
+                'pwm':               act.pwm_input,
+                'emergency_stopped': act.emergency_stopped,
+                'stalled':           act.stalled,
+                'target_position':   ctrl.target_position,
+                'at_target':         ctrl.at_target(),
+                'is_stable':         ctrl.is_stable(),
+            })
+        elif self.path == '/health':
+            self._respond(200, {'status': 'ok'})
+        else:
+            self._respond(404, {'error': 'not found'})
+
+    def _respond(self, code: int, data: dict) -> None:
+        body = _json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *_):
+        pass  # suppress default request logging
 
 
 # ── Main simulation class ──────────────────────────────────────────────────
@@ -859,7 +920,7 @@ class WheelchairLiftSim3D:
 
     # ── Main run loop ─────────────────────────────────────────────────────
 
-    def run(self):
+    def run(self, external_control: bool = False):
         print()
         print("=" * 64)
         print("  WHEELCHAIR SLING LIFT — 3D Demo")
@@ -890,6 +951,27 @@ class WheelchairLiftSim3D:
             while p.isConnected():
                 t0 = time.perf_counter()
 
+                # ── drain incoming API commands (serve mode only) ─────
+                if external_control:
+                    while True:
+                        try:
+                            cmd = _cmd_queue.get_nowait()
+                        except _queue.Empty:
+                            break
+                        if cmd == 'UP':
+                            t = min(self.ctrl.target_position + STEP_SIZE, ACT_STROKE)
+                            self.ctrl.set_target_position(t)
+                        elif cmd == 'DOWN':
+                            t = max(self.ctrl.target_position - STEP_SIZE, 0.0)
+                            self.ctrl.set_target_position(t)
+                        elif cmd == 'START':
+                            self.ctrl.reset_emergency_stop()
+                            self.act_L.reset_emergency_stop()
+                            self.act_R.reset_emergency_stop()
+                        elif cmd == 'STOP':
+                            self.emergency_stop()
+                        _cmd_queue.task_done()
+
                 # ── read sliders ──────────────────────────────────────
                 user_mass  = p.readUserDebugParameter(self.sl_weight)
                 target_in  = p.readUserDebugParameter(self.sl_target)
@@ -909,7 +991,8 @@ class WheelchairLiftSim3D:
                     self.act_R.max_force = max_force
                     prev_force = max_force
 
-                if abs(target_m - self.ctrl.target_position) > 0.0001:
+                # slider controls target only when hub is NOT driving it
+                if not external_control and abs(target_m - self.ctrl.target_position) > 0.0001:
                     clamped = max(0.0, min(target_m, ACT_STROKE))
                     if not self.ctrl.set_target_position(clamped):
                         self.ctrl.set_target_position(0.0)
@@ -1210,5 +1293,27 @@ class WheelchairLiftSim3D:
 # ── Entry point ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Wheelchair Sling Lift 3D Simulation")
+    ap.add_argument('--serve', action='store_true',
+                    help='Enable HTTP API so the Ableware hub can send commands')
+    ap.add_argument('--port', type=int, default=8001,
+                    help='HTTP API port when --serve is used (default: 8001)')
+    ap.add_argument('--demo', action='store_true',
+                    help='Run automated demo mode')
+    args = ap.parse_args()
+
     sim = WheelchairLiftSim3D()
-    sim.run_demo()
+
+    if args.serve:
+        _sim_ref = sim
+        api_server = HTTPServer(('', args.port), _SimAPIHandler)
+        api_thread = threading.Thread(target=api_server.serve_forever, daemon=True)
+        api_thread.start()
+        print(f"[Ableware] API server listening on :{args.port}")
+        print("[Ableware] Hub controls target. Sliders still set load/force/speed.")
+        sim.run(external_control=True)
+    elif args.demo:
+        sim.run_demo()
+    else:
+        sim.run()
