@@ -182,28 +182,21 @@ async def post_command(req: CommandRequest) -> dict:
         logger.info("Emergency stop cleared. Physics resuming.")
 
     elif cmd == "STOP":
-        _controller.emergency_stop()
-        logger.info("Emergency stop triggered.")
+        # freeze at current position — graceful stop, no START required to resume
+        pos = _actuator.position
+        _target_position = pos
+        _controller.set_target_position(pos)
+        logger.info("Stopped at %.4f m", pos)
 
     elif cmd == "UP":
-        _target_position = min(_target_position + STEP_SIZE, ACT_STROKE)
-        accepted = _controller.set_target_position(_target_position)
-        if not accepted:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Target position {_target_position:.4f} rejected by controller.",
-            )
-        logger.info("Target → %.4f m (UP)", _target_position)
+        _target_position = ACT_STROKE
+        _controller.set_target_position(_target_position)
+        logger.info("Target → %.4f m (UP — continuous)", _target_position)
 
     elif cmd == "DOWN":
-        _target_position = max(_target_position - STEP_SIZE, 0.0)
-        accepted = _controller.set_target_position(_target_position)
-        if not accepted:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Target position {_target_position:.4f} rejected by controller.",
-            )
-        logger.info("Target → %.4f m (DOWN)", _target_position)
+        _target_position = 0.0
+        _controller.set_target_position(_target_position)
+        logger.info("Target → %.4f m (DOWN — continuous)", _target_position)
 
     elif cmd in {"LEFT", "RIGHT"}:
         # Tilt axis — not yet implemented in the actuator model

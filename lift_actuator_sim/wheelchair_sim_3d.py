@@ -725,19 +725,20 @@ class WheelchairLiftSim3D:
                                 except _queue.Empty:
                                     break
                                 if cmd == 'UP':
-                                    t = min(self.ctrl.target_position + STEP_SIZE, ACT_STROKE)
-                                    self.ctrl.set_target_position(t)
-                                    ctrl_state["target"] = self.ctrl.target_position / max(ACT_STROKE, 1e-9)
+                                    self.ctrl.set_target_position(ACT_STROKE)
+                                    ctrl_state["target"] = 1.0
                                 elif cmd == 'DOWN':
-                                    t = max(self.ctrl.target_position - STEP_SIZE, 0.0)
-                                    self.ctrl.set_target_position(t)
-                                    ctrl_state["target"] = self.ctrl.target_position / max(ACT_STROKE, 1e-9)
+                                    self.ctrl.set_target_position(0.0)
+                                    ctrl_state["target"] = 0.0
                                 elif cmd == 'START':
                                     self.ctrl.reset_emergency_stop()
                                     self.act_L.reset_emergency_stop()
                                     self.act_R.reset_emergency_stop()
                                 elif cmd == 'STOP':
-                                    self.emergency_stop()
+                                    # freeze at current position (graceful stop — no START needed to resume)
+                                    pos = (self.act_L.position + self.act_R.position) / 2.0
+                                    self.ctrl.set_target_position(pos)
+                                    ctrl_state["target"] = pos / max(ACT_STROKE, 1e-9)
                                 _cmd_queue.task_done()
 
                         for ch in key_reader.poll():
