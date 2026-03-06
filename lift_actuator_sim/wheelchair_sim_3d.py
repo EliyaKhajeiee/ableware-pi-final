@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 3D Wheelchair Sling Lift Simulation — PyBullet (Demo Edition)
 
@@ -25,8 +25,22 @@ import sys
 import os
 import time
 import math
+import json as _json
+import queue as _queue
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import numpy as np
+
+
+from keyInput import KeyReader
+
+from UI import build_demo_scenarios_panel, create_demo_live, update_demo_live
+from UI.interactive_screen_ui import (
+    show_interactive_screen as show_interactive_live_screen,
+    create_interactive_live,
+    update_interactive_live,
+)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -37,133 +51,8 @@ from actuator import LinearActuator
 from load import UserLoad
 from controller import LiftController
 
-import json as _json
-import queue as _queue
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-
-# ── Geometry constants (metres, Z-up) ─────────────────────────────────────
-
-SEAT_H      = 0.480   # floor → seat top
-SEAT_W      = 0.460   # left/right
-SEAT_D      = 0.410   # front/back
-CUSHION_T   = 0.050
-
-BACK_H      = 0.450   # backrest height above seat
-WHEEL_R     = 0.305   # rear wheel radius (24-inch)
-WHEEL_T     = 0.038
-CASTER_R    = 0.076
-CASTER_T    = 0.024
-
-SLING_W     = 0.370
-SLING_D     = 0.350
-SLING_T     = 0.018
-
-# ── Actuator: real-world spec (PA-14 class, 1000 N, 4-inch stroke, 12/24 V)
-ACT_STROKE  = 0.1016   # 4-inch stroke  — most common practical size
-ACT_R       = 0.028    # outer body radius (~56 mm OD tube)
-ACT_BODY_H  = 0.200    # motor housing height
-ACT_SHAFT_H = 0.145    # visible shaft at full extension; > stroke for overlap
-ACT_SIDE_Y  = SEAT_W / 2 + 0.045   # Y mount: outside seat, inside wheels
-ACT_X       = 0.0      # centred front-back
-
-# Rated physics (PA-14 1000 N @ 12 V)
-ACT_MAX_VEL  = 0.010   # m/s  (10 mm/s at rated load — datasheet typical)
-ACT_MAX_ACC  = 0.040   # m/s²
-ACT_RAMP_T   = 0.60    # s    (slow worm-gear ramp)
-ACT_EFF      = 0.70    # drivetrain efficiency
-
-# Arm geometry (extends inward from shaft top over the sling)
-ARM_INNER_Y = SLING_W / 2 + 0.008
-ARM_R       = 0.012
-
-# Sling-strap attachment positions
-TIE_X_F     =  SLING_D / 2 - 0.045
-TIE_X_R     = -SLING_D / 2 + 0.045
-TIE_W       = 0.032    # nylon webbing strap width (32 mm)
-TIE_T       = 0.005    # strap thickness
-
-TUBE_R      = 0.011    # wheelchair frame tube radius
-
-# Sling tilt: rear (butt side) rises fully; front (thigh side) rises TILT_RATIO × as much
-# Creates forward nose-down tilt so butt clears the seat for pants-dressing
-TILT_RATIO  = 0.48     # 0 = full tilt, 1 = flat; 0.48 ≈ 11° at full stroke
-
-ACT_CAP_H   = 0.016   # housing top end-cap thickness
-ACT_XBRACE_Z = SEAT_H + ACT_BODY_H * 0.42   # cross-brace height on housing
-
-SLING_STRAP_W = 0.042  # nylon strap width (42 mm)
-SLING_RAIL_W  = 0.028  # side rail width  (28 mm)
-
-RULER_X     = ACT_SIDE_Y + 0.095   # X position of stroke ruler
-
-ACTUATOR_STROKE = ACT_STROKE   # back-compat alias for tests
-# ── Colour palette ─────────────────────────────────────────────────────────
-
-C_FRAME_DK  = [0.12, 0.13, 0.15, 1.0]   # near-black structural steel
-C_FRAME_MD  = [0.26, 0.28, 0.32, 1.0]   # gunmetal mid steel
-C_FRAME_LT  = [0.60, 0.64, 0.70, 1.0]   # polished chrome highlight
-
-C_TYRE      = [0.06, 0.06, 0.07, 1.0]   # near-black rubber
-C_RIM       = [0.74, 0.76, 0.80, 1.0]   # machined-aluminum rim
-C_SPOKE     = [0.48, 0.50, 0.55, 1.0]   # spoke steel
-C_HUB       = [0.30, 0.32, 0.36, 1.0]   # hub steel
-
-C_CUSHION   = [0.06, 0.08, 0.25, 0.97]  # midnight-navy seat cushion
-C_SLING_DN  = [0.05, 0.32, 0.78, 1.0]   # vivid medical blue (at rest)
-C_SLING_UP  = [0.06, 0.78, 0.44, 1.0]   # bright medical green (lifted)
-C_SLING_EDG = [0.03, 0.20, 0.52, 1.0]   # deep-blue rail edge
-
-C_ACT_IDLE  = [0.32, 0.34, 0.38, 1.0]   # idle rod (dark steel)
-C_ACT_OK    = [0.10, 0.84, 0.40, 1.0]   # bright operational green
-C_ACT_WARN  = [0.96, 0.70, 0.08, 1.0]   # amber warning
-C_ACT_DEAD  = [0.92, 0.12, 0.10, 1.0]   # bright fault red
-
-C_ARM       = [0.56, 0.59, 0.64, 1.0]   # yoke-arm chrome
-C_TIE       = [0.06, 0.28, 0.76, 1.0]   # vivid nylon-webbing blue
-C_TIE_EDGE  = [0.04, 0.16, 0.50, 1.0]   # strap border dark blue
-
-C_ACT_HOUSE = [0.80, 0.82, 0.86, 1.0]   # brushed-aluminum actuator tube
-C_ACT_MOTOR = [0.18, 0.19, 0.22, 1.0]   # dark-gunmetal motor/gearbox body
-C_ACT_ROD   = [0.30, 0.32, 0.36, 1.0]   # polished steel inner rod
-C_CAP       = [0.16, 0.17, 0.20, 1.0]   # end-cap / clevis near-black steel
-C_CABLE     = [0.04, 0.04, 0.05, 1.0]   # wiring harness near-black
-
-C_RULER     = [0.35, 0.80, 0.42]         # green stroke ruler   (3-ch RGB — debug lines)
-C_LABEL_Y   = [0.90, 0.85, 0.25]         # amber annotation text (3-ch RGB — debug text)
-
-C_FLOOR_A   = [0.08, 0.09, 0.11, 1.0]   # near-black charcoal polished floor
-C_FLOOR_B   = [0.17, 0.19, 0.22, 1.0]   # subtle grid lines
-
-
-# ── PyBullet helpers ───────────────────────────────────────────────────────
-
-def _q(roll=0.0, pitch=0.0, yaw=0.0):
-    return p.getQuaternionFromEuler([roll, pitch, yaw])
-
-
-def _box(half, pos, orn=None, color=None, mass=0):
-    orn = orn or _q()
-    col = p.createCollisionShape(p.GEOM_BOX, halfExtents=half)
-    vis = (p.createVisualShape(p.GEOM_BOX, halfExtents=half, rgbaColor=color)
-           if color else -1)
-    return p.createMultiBody(mass, col, vis, pos, orn)
-
-
-def _cyl(r, h, pos, orn=None, color=None, mass=0):
-    orn = orn or _q()
-    col = p.createCollisionShape(p.GEOM_CYLINDER, radius=r, height=h)
-    vis = (p.createVisualShape(p.GEOM_CYLINDER, radius=r, length=h, rgbaColor=color)
-           if color else -1)
-    return p.createMultiBody(mass, col, vis, pos, orn)
-
-
-def _sph(r, pos, color=None):
-    col = p.createCollisionShape(p.GEOM_SPHERE, radius=r)
-    vis = (p.createVisualShape(p.GEOM_SPHERE, radius=r, rgbaColor=color)
-           if color else -1)
-    return p.createMultiBody(0, col, vis, pos)
+from core.sim_constants import *
+from core.sim_pybHelper import _q, _box, _cyl
 
 
 # Visual-only (no collision) — for kinematic animated bodies
@@ -298,7 +187,10 @@ class WheelchairLiftSim3D:
 
         if not self._headless:
             p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1)
+            p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
             p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
+            p.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
+            p.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
             p.configureDebugVisualizer(p.COV_ENABLE_MOUSE_PICKING, 0)
             p.resetDebugVisualizerCamera(
                 cameraDistance=1.95,
@@ -773,284 +665,193 @@ class WheelchairLiftSim3D:
             self._ind_line_id = p.addUserDebugLine(
                 ind_from, ind_to, [1.0, 0.85, 0.0], lineWidth=5, lifeTime=0)
 
-    def _update_hud(self, user_mass, ext_m, pwm, cap_force_each,
-                    stalled, overloaded, at_target, supply_v, duty_pct):
-        """Engineering panel — everything needed to buy and build this."""
-        GRAVITY     = 9.81
-        SAFETY_F    = 2.0
-        total_grav  = user_mass * GRAVITY
-        per_act_req = total_grav / 2.0
-        per_act_des = per_act_req * SAFETY_F
-        pct_cap     = min(100.0, per_act_req / max(cap_force_each, 1.0) * 100.0)
-
-        # Recommended actuator rating (next standard size above design load)
-        std_ratings = [200, 350, 500, 750, 1000, 1500, 2000, 3000]
-        rec_rating  = next((r for r in std_ratings if r >= per_act_des), 3000)
-
-        # Performance
-        ext_in       = ext_m / 0.0254
-        stroke_in    = ACT_STROKE / 0.0254
-        time_to_full = ACT_STROKE / ACT_MAX_VEL
-
-        # Lift progress bar
-        pct_lift  = min(1.0, ext_m / max(ACT_STROKE, 1e-9))
-        filled    = int(round(pct_lift * 12))
-        bar       = "\u2588" * filled + "\u2591" * (12 - filled)
-        bar_label = f"  [{bar}]  {pct_lift*100:4.1f}%"
-
-        # Electrical (at rated load)
-        power_w   = per_act_req * ACT_MAX_VEL / ACT_EFF   # W per actuator
-        current_a = power_w / max(supply_v, 1.0)           # A per actuator
-        total_i   = current_a * 2                          # both actuators
-
-        # Wire gauge recommendation (2× for safety margin on continuous run)
-        wire_i = total_i * 2.0
-        if   wire_i <  3.0: awg = "AWG 20"
-        elif wire_i <  5.0: awg = "AWG 18"
-        elif wire_i < 10.0: awg = "AWG 16"
-        elif wire_i < 15.0: awg = "AWG 14"
-        elif wire_i < 20.0: awg = "AWG 12"
-        else:                awg = "AWG 10"
-
-        # Status
-        if stalled or overloaded:
-            status, sc = "OVERLOADED  —  ACTUATORS STALLED", [1.00, 0.12, 0.08]
-        elif at_target and ext_m > 0.003:
-            status, sc = "AT TARGET  —  Holding",            [0.18, 0.90, 0.36]
-        elif self.ctrl.target_position > 0.003 and \
-                ext_m < self.ctrl.target_position - 0.003:
-            status, sc = "LIFTING  …",                       [0.35, 0.78, 1.00]
-        elif self.ctrl.target_position < 0.003 and ext_m > 0.003:
-            status, sc = "LOWERING  …",                      [1.00, 0.65, 0.12]
-        else:
-            status, sc = "STANDBY  —  Ready",                [0.58, 0.60, 0.65]
-
-        W   = [0.93, 0.93, 0.93]
-        DIM = [0.42, 0.44, 0.48]
-        YLW = [1.00, 0.82, 0.22]
-        RED = [1.00, 0.32, 0.12]
-        GRN = [0.30, 0.92, 0.45]
-        CYN = [0.30, 0.88, 0.95]
-        force_c = RED if pct_cap > 90 else (YLW if pct_cap > 70 else W)
-        pwm_c   = RED if stalled else GRN
-        duty_c  = RED if duty_pct > 25 else (YLW if duty_pct > 18 else GRN)
-
-        tx = 0.56
-        z0 = SEAT_H + ACT_BODY_H + ACT_SHAFT_H + ACT_STROKE + 0.38
-
-        lines = [
-            # ── header ────────────────────────────────────────────────
-            ("\u2550" * 36,
-             DIM,  0.80, z0 + 0.14),
-            ("  SLING LIFT ACTUATOR SYSTEM",
-             [0.92, 0.94, 0.98], 1.15, z0 + 0.04),
-            ("\u2550" * 36,
-             DIM,  0.80, z0 - 0.06),
-            # ── operational status ────────────────────────────────────
-            (status,
-             sc,   1.30, z0 - 0.17),
-            ("\u2500" * 36,
-             DIM,  0.78, z0 - 0.28),
-            # ── lift progress ─────────────────────────────────────────
-            ("LIFT PROGRESS",
-             W,    0.95, z0 - 0.39),
-            (bar_label,
-             CYN,  1.05, z0 - 0.49),
-            (f"  {ext_in:.3f} in  \u2192  {ext_m*1000:.1f} mm  "
-             f"of {stroke_in:.0f} in stroke",
-             W,    0.95, z0 - 0.59),
-            ("\u2500" * 36,
-             DIM,  0.78, z0 - 0.69),
-            # ── load analysis ─────────────────────────────────────────
-            ("LOAD ANALYSIS",
-             W,    0.95, z0 - 0.80),
-            (f"  User weight    {user_mass:>5.0f} kg  "
-             f"({user_mass*2.205:.0f} lb)",
-             W,    1.00, z0 - 0.90),
-            (f"  Gravity force  {total_grav:>5.0f} N  total",
-             force_c, 1.00, z0 - 1.00),
-            (f"  Per actuator   {per_act_req:>5.0f} N  "
-             f"({pct_cap:.0f}% of rated {cap_force_each:.0f} N)",
-             force_c, 1.00, z0 - 1.10),
-            (f"  2\u00d7 safety     {per_act_des:>5.0f} N  "
-             f"\u2192 specify \u2265 {rec_rating} N",
-             YLW,  1.00, z0 - 1.20),
-            ("\u2500" * 36,
-             DIM,  0.78, z0 - 1.30),
-            # ── electrical ────────────────────────────────────────────
-            (f"ELECTRICAL  \u2014  {supply_v:.0f} V DC",
-             W,    0.95, z0 - 1.41),
-            (f"  Per actuator   {power_w:>5.1f} W   {current_a:.2f} A",
-             W,    1.00, z0 - 1.51),
-            (f"  Both actuators {power_w*2:>5.1f} W   {total_i:.2f} A",
-             W,    1.00, z0 - 1.61),
-            (f"  Min wire gauge  {awg}  (60 \u00b0C, 2\u00d7 safety)",
-             CYN,  1.00, z0 - 1.71),
-            (f"  Live duty cycle {duty_pct:>4.1f}%  (spec \u2264 25%)",
-             duty_c, 1.00, z0 - 1.81),
-            ("\u2500" * 36,
-             DIM,  0.78, z0 - 1.91),
-            # ── procurement spec ──────────────────────────────────────
-            ("PROCUREMENT SPEC",
-             GRN,  0.95, z0 - 2.02),
-            (f"  Force  \u2265 {rec_rating} N      "
-             f"Stroke  {stroke_in:.0f} in     {supply_v:.0f} V DC",
-             GRN,  1.00, z0 - 2.12),
-            (f"  Speed  \u2265 {ACT_MAX_VEL*1000:.0f} mm/s    "
-             f"Enclosure  IP54 or better",
-             GRN,  1.00, z0 - 2.22),
-            (f"  e.g.  Progressive Automations PA-14",
-             DIM,  0.88, z0 - 2.32),
-            (f"        Firgelli Automations FA-PO series",
-             DIM,  0.88, z0 - 2.41),
-            ("\u2500" * 36,
-             DIM,  0.78, z0 - 2.50),
-            # ── live telemetry ────────────────────────────────────────
-            (f"  PWM  {pwm:>+.3f}     "
-             f"{'STALLED' if stalled else 'running'}",
-             pwm_c, 1.00, z0 - 2.60),
-        ]
-
-        for key, (text, color, size, z) in enumerate(lines):
-            kw = dict(text=text, textPosition=[tx, 0, z],
-                      textColorRGB=color, textSize=size, lifeTime=0)
-            if key in self._txt:
-                kw['replaceItemUniqueId'] = self._txt[key]
-            self._txt[key] = p.addUserDebugText(**kw)
-
     # ── Main run loop ─────────────────────────────────────────────────────
 
     def run(self, external_control: bool = False):
-        print()
-        print("=" * 64)
-        print("  WHEELCHAIR SLING LIFT — 3D Demo")
-        print("=" * 64)
-        print("  Two side-mounted linear actuators lift the sling.")
-        print()
-        print("  Sliders (left panel):")
-        print("    User Weight   — sets load; HUD shows required force")
-        print("    Lift Target   — 0 = down, 1 = full 4-inch lift")
-        print("    Max Force     — reduce to see actuator stall (red)")
-        print("    Supply Volt   — 12 V or 24 V (affects current calc)")
-        print("    Sim Speed     — 0.25 = slow-motion, 1 = real-time, 4 = fast")
-        print()
-        print("  Ruler (right side): shows 0–100% stroke with live marker.")
-        print("  HUD: load, progress bar, electrical, wire gauge, buy spec.")
-        print("=" * 64)
-        print()
+        BASE_DT = 0.01
+        RENDER_EVERY = 2
+        CTRL_MIN_WEIGHT = 40.0
+        CTRL_MAX_WEIGHT = 220.0
+        CTRL_MIN_TARGET = 0.0
+        CTRL_MAX_TARGET = 1.0
+        CTRL_MIN_FORCE = 200.0
+        CTRL_MAX_FORCE = 3000.0
+        CTRL_MIN_VOLTS = 12.0
+        CTRL_MAX_VOLTS = 24.0
+        CTRL_MIN_SPEED = 0.25
+        CTRL_MAX_SPEED = 4.0
 
-        BASE_DT     = 0.01    # physics timestep (100 Hz base)
-        RENDER_EVERY = 2      # render every Nth physics step
+        prev_weight = -1.0
+        prev_force = -1.0
+        step = 0
+        duty_window = 200
+        ctrl_state = {
+            "weight": 80.0,
+            "target": 0.0,
+            "force": 1000.0,
+            "volts": 12.0,
+            "speed": 1.0,
+        }
 
-        prev_weight  = -1.0
-        prev_force   = -1.0
-        step         = 0
-        duty_window  = 200    # frames in rolling duty-cycle window
+        initial_ext = (self.act_L.position + self.act_R.position) / 2.0
+        initial_state = {
+            "user_mass": self.load.mass * 2.0,
+            "ext_m": initial_ext,
+            "pwm": self.act_L.pwm_input,
+            "cap_force_each": self.act_L.max_force,
+            "stalled": self.act_L.stalled or self.act_R.stalled,
+            "overloaded": self.ctrl.overload_detected,
+            "at_target": self.ctrl.at_target(),
+            "supply_v": 12.0,
+            "duty_pct": 0.0,
+            "target_position": self.ctrl.target_position,
+            "target": self.ctrl.target_position / max(ACT_STROKE, 1e-9),
+            "speed": 1.0,
+        }
 
         try:
-            while p.isConnected():
-                t0 = time.perf_counter()
+            show_interactive_live_screen()
+            with create_interactive_live(initial_state, refresh_per_second=10) as live:
+                with KeyReader() as key_reader:
+                    while p.isConnected():
+                        t0 = time.perf_counter()
+                        should_quit = False
 
-                # ── drain incoming API commands (serve mode only) ─────
-                if external_control:
-                    while True:
-                        try:
-                            cmd = _cmd_queue.get_nowait()
-                        except _queue.Empty:
+                        # drain API commands when hub is driving the sim
+                        if external_control:
+                            while True:
+                                try:
+                                    cmd = _cmd_queue.get_nowait()
+                                except _queue.Empty:
+                                    break
+                                if cmd == 'UP':
+                                    t = min(self.ctrl.target_position + STEP_SIZE, ACT_STROKE)
+                                    self.ctrl.set_target_position(t)
+                                    ctrl_state["target"] = self.ctrl.target_position / max(ACT_STROKE, 1e-9)
+                                elif cmd == 'DOWN':
+                                    t = max(self.ctrl.target_position - STEP_SIZE, 0.0)
+                                    self.ctrl.set_target_position(t)
+                                    ctrl_state["target"] = self.ctrl.target_position / max(ACT_STROKE, 1e-9)
+                                elif cmd == 'START':
+                                    self.ctrl.reset_emergency_stop()
+                                    self.act_L.reset_emergency_stop()
+                                    self.act_R.reset_emergency_stop()
+                                elif cmd == 'STOP':
+                                    self.emergency_stop()
+                                _cmd_queue.task_done()
+
+                        for ch in key_reader.poll():
+                            c = ch.lower()
+                            if c == "q":
+                                should_quit = True
+                                break
+                            elif c == "j":
+                                ctrl_state["weight"] -= 1.0
+                            elif c == "k":
+                                ctrl_state["weight"] += 1.0
+                            elif not external_control and c == "n":
+                                ctrl_state["target"] -= 0.02
+                            elif not external_control and c == "m":
+                                ctrl_state["target"] += 0.02
+                            elif c == "u":
+                                ctrl_state["force"] -= 50.0
+                            elif c == "i":
+                                ctrl_state["force"] += 50.0
+                            elif c == "v":
+                                ctrl_state["volts"] -= 1.0
+                            elif c == "b":
+                                ctrl_state["volts"] += 1.0
+                            elif c == "1":
+                                ctrl_state["speed"] -= 0.05
+                            elif c == "2":
+                                ctrl_state["speed"] += 0.05
+
+                        if should_quit:
                             break
-                        if cmd == 'UP':
-                            t = min(self.ctrl.target_position + STEP_SIZE, ACT_STROKE)
-                            self.ctrl.set_target_position(t)
-                        elif cmd == 'DOWN':
-                            t = max(self.ctrl.target_position - STEP_SIZE, 0.0)
-                            self.ctrl.set_target_position(t)
-                        elif cmd == 'START':
-                            self.ctrl.reset_emergency_stop()
-                            self.act_L.reset_emergency_stop()
-                            self.act_R.reset_emergency_stop()
-                        elif cmd == 'STOP':
-                            self.emergency_stop()
-                        _cmd_queue.task_done()
 
-                # ── read sliders ──────────────────────────────────────
-                user_mass  = p.readUserDebugParameter(self.sl_weight)
-                target_in  = p.readUserDebugParameter(self.sl_target)
-                max_force  = p.readUserDebugParameter(self.sl_force)
-                supply_v   = p.readUserDebugParameter(self.sl_volts)
-                speed_mult = p.readUserDebugParameter(self.sl_speed)
+                        ctrl_state["weight"] = max(CTRL_MIN_WEIGHT, min(CTRL_MAX_WEIGHT, ctrl_state["weight"]))
+                        ctrl_state["target"] = max(CTRL_MIN_TARGET, min(CTRL_MAX_TARGET, ctrl_state["target"]))
+                        ctrl_state["force"] = max(CTRL_MIN_FORCE, min(CTRL_MAX_FORCE, ctrl_state["force"]))
+                        ctrl_state["volts"] = max(CTRL_MIN_VOLTS, min(CTRL_MAX_VOLTS, ctrl_state["volts"]))
+                        ctrl_state["speed"] = max(CTRL_MIN_SPEED, min(CTRL_MAX_SPEED, ctrl_state["speed"]))
 
-                target_m = target_in * ACT_STROKE
+                        user_mass = ctrl_state["weight"]
+                        target_in = ctrl_state["target"]
+                        max_force = ctrl_state["force"]
+                        supply_v = ctrl_state["volts"]
+                        speed_mult = ctrl_state["speed"]
+                        target_m = target_in * ACT_STROKE
 
-                # ── sync physics params when sliders change ───────────
-                if abs(user_mass - prev_weight) > 0.05:
-                    self.load.set_mass(user_mass / 2.0)
-                    prev_weight = user_mass
+                        if abs(user_mass - prev_weight) > 0.05:
+                            self.load.set_mass(user_mass / 2.0)
+                            prev_weight = user_mass
 
-                if abs(max_force - prev_force) > 0.5:
-                    self.act_L.max_force = max_force
-                    self.act_R.max_force = max_force
-                    prev_force = max_force
+                        if abs(max_force - prev_force) > 0.5:
+                            self.act_L.max_force = max_force
+                            self.act_R.max_force = max_force
+                            prev_force = max_force
 
-                # slider controls target only when hub is NOT driving it
-                if not external_control and abs(target_m - self.ctrl.target_position) > 0.0001:
-                    clamped = max(0.0, min(target_m, ACT_STROKE))
-                    if not self.ctrl.set_target_position(clamped):
-                        self.ctrl.set_target_position(0.0)
+                        # keyboard controls target only when hub is NOT driving it
+                        if not external_control and abs(target_m - self.ctrl.target_position) > 0.0001:
+                            clamped = max(0.0, min(target_m, ACT_STROKE))
+                            if not self.ctrl.set_target_position(clamped):
+                                self.ctrl.set_target_position(0.0)
 
-                # ── how many physics steps this frame ─────────────────
-                # speed_mult > 1 → run multiple steps per frame (fast)
-                # speed_mult < 1 → one step but sleep longer (slow)
-                n_steps = max(1, round(speed_mult))
+                        n_steps = max(1, round(speed_mult))
+                        pwm = 0.0
+                        req_force = 0.0
 
-                for _ in range(n_steps):
-                    req_force = self.load.get_required_force(
-                        self.act_L.acceleration)
-                    pwm       = self.ctrl.update(BASE_DT)
-                    self.act_L.set_pwm(pwm)
-                    self.act_R.set_pwm(pwm)
-                    self.act_L.step(BASE_DT, req_force)
-                    self.act_R.step(BASE_DT, req_force)
-                    p.stepSimulation()
+                        for _ in range(n_steps):
+                            req_force = self.load.get_required_force(self.act_L.acceleration)
+                            pwm = self.ctrl.update(BASE_DT)
+                            self.act_L.set_pwm(pwm)
+                            self.act_R.set_pwm(pwm)
+                            self.act_L.step(BASE_DT, req_force)
+                            self.act_R.step(BASE_DT, req_force)
+                            p.stepSimulation()
 
-                    # duty-cycle counter (is the actuator actively driving?)
-                    self._duty_total += 1
-                    if abs(pwm) > 0.02 and not self.act_L.stalled:
-                        self._duty_on += 1
+                            self._duty_total += 1
+                            if abs(pwm) > 0.02 and not self.act_L.stalled:
+                                self._duty_on += 1
 
-                ext        = (self.act_L.position + self.act_R.position) / 2.0
-                stalled    = self.act_L.stalled or self.act_R.stalled
-                overloaded = self.ctrl.overload_detected
-                at_target  = self.ctrl.at_target()
+                        ext = (self.act_L.position + self.act_R.position) / 2.0
+                        stalled = self.act_L.stalled or self.act_R.stalled
+                        overloaded = self.ctrl.overload_detected
+                        at_target = self.ctrl.at_target()
 
-                # rolling duty cycle (last N frames)
-                window = max(1, duty_window)
-                if self._duty_total > window * 3:
-                    self._duty_on    = int(self._duty_on    * window / self._duty_total)
-                    self._duty_total = window
-                duty_pct = self._duty_on / max(1, self._duty_total) * 100.0
+                        window = max(1, duty_window)
+                        if self._duty_total > window * 3:
+                            self._duty_on = int(self._duty_on * window / self._duty_total)
+                            self._duty_total = window
+                        duty_pct = self._duty_on / max(1, self._duty_total) * 100.0
 
-                # ── render every RENDER_EVERY steps ──────────────────
-                step += 1
-                if step % RENDER_EVERY == 0:
-                    self._update_visuals(ext, stalled, overloaded, at_target,
-                                         force_per_act=req_force)
-                    self._update_hud(
-                        user_mass      = user_mass,
-                        ext_m          = ext,
-                        pwm            = pwm,
-                        cap_force_each = max_force,
-                        stalled        = stalled,
-                        overloaded     = overloaded,
-                        at_target      = at_target,
-                        supply_v       = supply_v,
-                        duty_pct       = duty_pct)
+                        step += 1
+                        if step % RENDER_EVERY == 0:
+                            self._update_visuals(ext, stalled, overloaded, at_target, force_per_act=req_force)
 
-                # ── real-time pacing ─────────────────────────────────
-                frame_real_dt = BASE_DT * n_steps / speed_mult
-                elapsed       = time.perf_counter() - t0
-                slack         = frame_real_dt - elapsed
-                if slack > 0:
-                    time.sleep(slack)
+                        update_interactive_live(
+                            live,
+                            {
+                                "user_mass": user_mass,
+                                "ext_m": ext,
+                                "pwm": pwm,
+                                "cap_force_each": max_force,
+                                "stalled": stalled,
+                                "overloaded": overloaded,
+                                "at_target": at_target,
+                                "supply_v": supply_v,
+                                "duty_pct": duty_pct,
+                                "target_position": self.ctrl.target_position,
+                                "target": ctrl_state["target"],
+                                "speed": ctrl_state["speed"],
+                            },
+                        )
+
+                        frame_real_dt = BASE_DT * n_steps / speed_mult
+                        elapsed = time.perf_counter() - t0
+                        slack = frame_real_dt - elapsed
+                        if slack > 0:
+                            time.sleep(slack)
 
         except KeyboardInterrupt:
             print("\nSimulation stopped.")
@@ -1129,156 +930,119 @@ class WheelchairLiftSim3D:
             self.ctrl.integral_error           = 0.0
             self.ctrl.last_error               = 0.0
             self.ctrl.set_target_position(ACT_STROKE)
-            return s
-
-        def _demo_hud(s, ph, ext, stalled, overload, idx):
-            total  = len(SCENARIOS)
-            mass   = s["mass_kg"]
-            lbs    = mass * 2.205
-            force  = mass * 9.81
-            per    = force / 2.0
-            pct    = min(1.0, ext / max(ACT_STROKE, 1e-9))
-            filled = int(round(pct * 14))
-            bar    = "\u2588" * filled + "\u2591" * (14 - filled)
-            ext_in = ext / 0.0254
-            force_ok = per <= s["force"]
-
-            if stalled or overload:
-                ph_str = "\u26a0  STALL / OVERLOAD"
-                pc = [1.00, 0.15, 0.10]
-            elif ph == "LIFTING":
-                ph_str = "\u2191  LIFTING"
-                pc = [0.28, 0.86, 0.95]
-            elif ph == "HOLD_UP":
-                ph_str = "\u25a0  HOLDING AT TOP"
-                pc = [0.28, 0.92, 0.44]
-            elif ph == "LOWERING":
-                ph_str = "\u2193  LOWERING"
-                pc = [1.00, 0.64, 0.12]
-            else:
-                ph_str = "\u22ef  STANDBY"
-                pc = [0.50, 0.52, 0.58]
-
-            W   = [0.94, 0.94, 0.96]
-            DIM = [0.34, 0.36, 0.42]
-            YLW = [1.00, 0.84, 0.18]
-            GRN = [0.24, 0.90, 0.44]
-            CYN = [0.24, 0.82, 0.94]
-            RED = [1.00, 0.20, 0.10]
-
-            rows = [
-                ("\u2550" * 30,                         DIM, 0.78),   # 0
-                ("  SLING LIFT \u2014 AUTO DEMO",  [0.92, 0.94, 0.98], 1.08),  # 1
-                (f"  Scenario  {idx+1} / {total}",      W,   0.88),   # 2
-                ("\u2550" * 30,                         DIM, 0.78),   # 3
-                (f"  {s['label']}",                     YLW, 1.30),   # 4
-                (f"  {mass:.0f} kg  \u2014  {lbs:.0f} lb", W, 1.05), # 5
-                ("\u2500" * 30,                         DIM, 0.72),   # 6
-                (ph_str,                                pc,  1.18),   # 7
-                (f"  [{bar}]  {pct*100:4.1f}%",         CYN, 1.05),  # 8
-                (f"  Lift  {ext_in:.3f} in"
-                 f"  \u2192  {ext*1000:.1f} mm",        W,   0.92),   # 9
-                ("\u2500" * 30,                         DIM, 0.72),   # 10
-                ("  FORCE CALCULATION",                 W,   0.88),   # 11
-                (f"  Total gravity   {force:>6.0f} N",  W,   0.92),   # 12
-                (f"  Per actuator    {per:>6.0f} N",    W,   0.92),   # 13
-                (f"  Actuator rated  {s['force']:>6} N"
-                 f"  ({'  OK  ' if force_ok else 'EXCEEDED'})",
-                 GRN if force_ok else RED, 0.92),                     # 14
-                ("\u2550" * 30,                         DIM, 0.78),   # 15
-            ]
-
-            for key, (text, color, size) in enumerate(rows):
-                kw = dict(text=text, textPosition=[tx, 0, Zs[key]],
-                          textColorRGB=color, textSize=size, lifeTime=0)
-                if key in demo_txt:
-                    kw["replaceItemUniqueId"] = demo_txt[key]
-                demo_txt[key] = p.addUserDebugText(**kw)
+            return s           
 
         # ── bootstrap ──────────────────────────────────────────────────
         cur = _reset_and_load(si)
 
-        print()
-        print("=" * 56)
-        print("  SLING LIFT ACTUATOR SYSTEM — AUTO DEMO  (5× speed)")
-        print("=" * 56)
-        for i, s in enumerate(SCENARIOS):
-            needed = s["mass_kg"] * 9.81 / 2
-            ok     = "OK" if needed <= s["force"] else "will STALL"
-            print(f"  {i+1}. {s['label']:16s}  {s['mass_kg']:3} kg  "
-                  f"need {needed:.0f} N  rated {s['force']} N  [{ok}]")
-        print("=" * 56)
-        print()
+        last_event_text = ""
+
+        initial_state = {
+            "scenario": cur,
+            "phase": phase,
+            "ext_m": 0.0,
+            "stalled": False,
+            "overload": False,
+            "idx": si,
+            "total": len(SCENARIOS),
+            "stroke_m": ACT_STROKE,
+            "event_text": last_event_text,
+        }
 
         try:
-            while p.isConnected():
-                t0 = time.perf_counter()
+            with create_demo_live(initial_state, refresh_per_second=10) as live:
+                with KeyReader() as key_reader:
+                    build_demo_scenarios_panel(live, SCENARIOS)
+                    while p.isConnected():
+                        t0 = time.perf_counter()
 
-                # ── 5 physics steps per frame ──────────────────────────
-                for _ in range(DEMO_STEPS):
-                    req = self.load.get_required_force(self.act_L.acceleration)
-                    pwm = self.ctrl.update(BASE_DT)
-                    self.act_L.set_pwm(pwm)
-                    self.act_R.set_pwm(pwm)
-                    self.act_L.step(BASE_DT, req)
-                    self.act_R.step(BASE_DT, req)
-                    p.stepSimulation()
+                        should_quit = False
 
-                ext      = (self.act_L.position + self.act_R.position) / 2.0
-                stalled  = self.act_L.stalled or self.act_R.stalled
-                overload = self.ctrl.overload_detected
-                at_tgt   = self.ctrl.at_target()
+                        for ch in key_reader.poll():
+                            c = ch.lower()
+                            if c == "q":
+                                should_quit = True
+                                break
 
-                # ── state machine ──────────────────────────────────────
-                if phase == "LIFTING":
-                    if at_tgt or stalled or overload:
-                        phase      = "HOLD_UP"
-                        hold_start = time.perf_counter()
-                        tag = "STALLED" if (stalled or overload) else "AT TOP"
-                        print(f"  [{cur['label']:16s}]  {cur['mass_kg']:3} kg  "
-                              f"{tag:8}  {ext*1000:.1f} mm  "
-                              f"need {cur['mass_kg']*9.81/2:.0f} N  "
-                              f"rated {cur['force']} N")
+                        if should_quit:
+                            break
+                        
+                        # ── 5 physics steps per frame ──────────────────────────
+                        for _ in range(DEMO_STEPS):
+                            req = self.load.get_required_force(self.act_L.acceleration)
+                            pwm = self.ctrl.update(BASE_DT)
+                            self.act_L.set_pwm(pwm)
+                            self.act_R.set_pwm(pwm)
+                            self.act_L.step(BASE_DT, req)
+                            self.act_R.step(BASE_DT, req)
+                            p.stepSimulation()
 
-                elif phase == "HOLD_UP":
-                    if time.perf_counter() - hold_start >= HOLD_TOP_S:
-                        phase = "LOWERING"
-                        # Clear stall so actuator can retract
-                        for act in (self.act_L, self.act_R):
-                            act.stalled = False
-                        self.ctrl.overload_detected = False
-                        self.ctrl.set_target_position(0.0)
+                        ext      = (self.act_L.position + self.act_R.position) / 2.0
+                        stalled  = self.act_L.stalled or self.act_R.stalled
+                        overload = self.ctrl.overload_detected
+                        at_tgt   = self.ctrl.at_target()
 
-                elif phase == "LOWERING":
-                    if ext < 0.003 and at_tgt:
-                        phase      = "HOLD_DOWN"
-                        hold_start = time.perf_counter()
+                        # ── state machine ──────────────────────────────────────
+                        if phase == "LIFTING":
+                            if at_tgt or stalled or overload:
+                                phase      = "HOLD_UP"
+                                hold_start = time.perf_counter()
+                                tag = "STALLED" if (stalled or overload) else "AT TOP"
+                                last_event_text += f"  [{cur['label']:16s}]  {cur['mass_kg']:3} kg  " \
+                                                f"{tag:8}  {ext*1000:.1f} mm  " \
+                                                f"need {cur['mass_kg']*9.81/2:.0f} N  " \
+                                                f"rated {cur['force']} N"
+                        elif phase == "HOLD_UP":
+                            if time.perf_counter() - hold_start >= HOLD_TOP_S:
+                                phase = "LOWERING"
+                                # Clear stall so actuator can retract
+                                for act in (self.act_L, self.act_R):
+                                    act.stalled = False
+                                self.ctrl.overload_detected = False
+                                self.ctrl.set_target_position(0.0)
 
-                elif phase == "HOLD_DOWN":
-                    if time.perf_counter() - hold_start >= HOLD_BTM_S:
-                        si  = (si + 1) % len(SCENARIOS)
-                        cur = _reset_and_load(si)
-                        phase = "LIFTING"
-                        print(f"  → Scenario {si+1}: {cur['label']}"
-                              f"  {cur['mass_kg']} kg")
+                        elif phase == "LOWERING":
+                            if ext < 0.003 and at_tgt:
+                                phase      = "HOLD_DOWN"
+                                hold_start = time.perf_counter()
 
-                # ── render ─────────────────────────────────────────────
-                if not p.isConnected():
-                    break
-                step += 1
-                if step % 2 == 0:
-                    try:
-                        self._update_visuals(ext, stalled, overload, at_tgt,
-                                             force_per_act=req)
-                        _demo_hud(cur, phase, ext, stalled, overload, si)
-                    except Exception:
-                        break   # window closed mid-frame
+                        elif phase == "HOLD_DOWN":
+                            if time.perf_counter() - hold_start >= HOLD_BTM_S:
+                                si  = (si + 1) % len(SCENARIOS)
+                                cur = _reset_and_load(si)
+                                phase = "LIFTING"
+                                last_event_text = f"Scenario {si+1}: {cur['label']} ({cur['mass_kg']} kg)\n"
 
-                # ── real-time pacing (target 100 Hz wall clock) ────────
-                elapsed = time.perf_counter() - t0
-                slack   = BASE_DT - elapsed
-                if slack > 0:
-                    time.sleep(slack)
+                        # ── render ─────────────────────────────────────────────
+                        if not p.isConnected():
+                            break
+                        step += 1
+                        if step % 2 == 0:
+                            try:
+                                self._update_visuals(ext, stalled, overload, at_tgt,
+                                                    force_per_act=req)
+                            except Exception:
+                                break   # window closed mid-frame
+                        update_demo_live(
+                            live,
+                            {
+                                "scenario": cur,
+                                "phase": phase,
+                                "ext_m": ext,
+                                "stalled": stalled,
+                                "overload": overload,
+                                "idx": si,
+                                "total": len(SCENARIOS),
+                                "stroke_m": ACT_STROKE,
+                                "event_text": last_event_text,
+                            },
+                        )
+
+                        # ── real-time pacing (target 100 Hz wall clock) ────────
+                        elapsed = time.perf_counter() - t0
+                        slack   = BASE_DT - elapsed
+                        if slack > 0:
+                            time.sleep(slack)
 
         except KeyboardInterrupt:
             print("\n  Demo stopped.")
@@ -1288,32 +1052,3 @@ class WheelchairLiftSim3D:
                     p.disconnect()
             except Exception:
                 pass
-
-
-# ── Entry point ────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    import argparse
-    ap = argparse.ArgumentParser(description="Wheelchair Sling Lift 3D Simulation")
-    ap.add_argument('--serve', action='store_true',
-                    help='Enable HTTP API so the Ableware hub can send commands')
-    ap.add_argument('--port', type=int, default=8001,
-                    help='HTTP API port when --serve is used (default: 8001)')
-    ap.add_argument('--demo', action='store_true',
-                    help='Run automated demo mode')
-    args = ap.parse_args()
-
-    sim = WheelchairLiftSim3D()
-
-    if args.serve:
-        _sim_ref = sim
-        api_server = HTTPServer(('', args.port), _SimAPIHandler)
-        api_thread = threading.Thread(target=api_server.serve_forever, daemon=True)
-        api_thread.start()
-        print(f"[Ableware] API server listening on :{args.port}")
-        print("[Ableware] Hub controls target. Sliders still set load/force/speed.")
-        sim.run(external_control=True)
-    elif args.demo:
-        sim.run_demo()
-    else:
-        sim.run()

@@ -2,3 +2,5 @@ numpy>=1.20.0
 pytest>=7.0.0
 pybullet>=3.2.0
 matplotlib>=3.5.0
+rich>=13.0.0
+pyfiglet>=1.0.0

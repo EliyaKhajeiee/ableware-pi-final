@@ -24,7 +24,7 @@ The hub is the only thing that talks to both the Pi and the simulation. The Pi a
 | Component | Machine | How to start |
 |---|---|---|
 | Hub + Dashboard | Laptop | `python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000` |
-| 3D Simulation   | Laptop | `python3 lift_actuator_sim/wheelchair_sim_3d.py --serve` |
+| 3D Simulation   | Laptop | `python3 lift_actuator_sim/main.py serve` |
 | Voice client    | Pi     | `python3 voice/main.py` |
 
 Start order: 3D simulation → hub → Pi client.
@@ -79,7 +79,7 @@ If you're working on the simulation side and don't have a Pi, you don't need one
 
 1. Start the 3D simulation (opens the PyBullet window and listens for hub commands):
 ```bash
-python3 lift_actuator_sim/wheelchair_sim_3d.py --serve
+python3 lift_actuator_sim/main.py serve
 ```
 
 2. Start the hub:
