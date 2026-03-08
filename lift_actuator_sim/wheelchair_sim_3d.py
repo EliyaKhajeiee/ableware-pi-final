@@ -1053,3 +1053,41 @@ class WheelchairLiftSim3D:
                     p.disconnect()
             except Exception:
                 pass
+
+
+# ── Entry point ───────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Wheelchair Sling Lift 3D Simulation")
+    parser.add_argument("--serve", action="store_true",
+                        help="Expose HTTP API on :8001 so the Ableware hub can drive the sim")
+    parser.add_argument("--demo", action="store_true",
+                        help="Run the automated demo cycle instead of interactive mode")
+    parser.add_argument("--port", type=int, default=8001,
+                        help="Port for the HTTP API (default: 8001, only used with --serve)")
+    args = parser.parse_args()
+
+    sim = WheelchairLiftSim3D()
+
+    if args.serve:
+        global _sim_ref
+        _sim_ref = sim
+
+        server = HTTPServer(("", args.port), _SimAPIHandler)
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+        print(f"[serve] HTTP API listening on :{args.port}  (POST /command  GET /state)")
+
+        try:
+            if args.demo:
+                sim.run_demo()
+            else:
+                sim.run(external_control=True)
+        finally:
+            server.shutdown()
+    elif args.demo:
+        sim.run_demo()
+    else:
+        sim.run()
