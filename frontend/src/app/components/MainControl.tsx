@@ -48,7 +48,7 @@ interface StateUpdate {
 
 // ---- Constants -----------------------------------------------------
 
-const ACT_STROKE = 0.0254; // 1 inch in metres — matches simulation_stub.py
+const ACT_STROKE = 0.1016; // 4-inch stroke — matches wheelchair_sim_3d.py
 const HUB_WS_URL =
   window.location.hostname === 'localhost'
     ? 'ws://localhost:8000/ws/dashboard'

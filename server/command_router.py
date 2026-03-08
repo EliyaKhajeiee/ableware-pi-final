@@ -50,7 +50,8 @@ async def _fetch_sim_state() -> Optional[SimulationState]:
             resp = await client.get(f"{SIM_URL}/state")
             resp.raise_for_status()
             return SimulationState(**resp.json())
-    except Exception:
+    except Exception as exc:
+        logger.warning("Sim state fetch failed: %s", exc)
         return None
 
 
