@@ -1072,7 +1072,6 @@ if __name__ == "__main__":
     sim = WheelchairLiftSim3D()
 
     if args.serve:
-        global _sim_ref
         _sim_ref = sim
 
         server = HTTPServer(("", args.port), _SimAPIHandler)
