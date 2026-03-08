@@ -141,15 +141,15 @@ class _SimAPIHandler(BaseHTTPRequestHandler):
             act  = sim.act_L
             ctrl = sim.ctrl
             self._respond(200, {
-                'position':          act.position,
-                'velocity':          act.velocity,
-                'acceleration':      act.acceleration,
-                'pwm':               act.pwm_input,
-                'emergency_stopped': act.emergency_stopped,
-                'stalled':           act.stalled,
-                'target_position':   ctrl.target_position,
-                'at_target':         ctrl.at_target(),
-                'is_stable':         ctrl.is_stable(),
+                'position':          float(act.position),
+                'velocity':          float(act.velocity),
+                'acceleration':      float(act.acceleration),
+                'pwm':               float(act.pwm_input),
+                'emergency_stopped': bool(act.emergency_stopped),
+                'stalled':           bool(act.stalled),
+                'target_position':   float(ctrl.target_position),
+                'at_target':         bool(ctrl.at_target()),
+                'is_stable':         bool(ctrl.is_stable()),
             })
         elif self.path == '/health':
             self._respond(200, {'status': 'ok'})
