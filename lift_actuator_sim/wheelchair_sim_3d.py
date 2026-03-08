@@ -114,7 +114,7 @@ WHEEL_ORN = _q(math.pi / 2, 0, 0)   # lay cylinder on its side
 
 # ── Network API (used when running with --serve) ───────────────────────────
 
-STEP_SIZE = 0.0025   # metres per UP/DOWN command (matches simulation_stub.py)
+STEP_SIZE = 0.0254   # metres per UP/DOWN command (1 inch per click)
 
 _cmd_queue: _queue.Queue = _queue.Queue()
 _sim_ref = None      # holds the active WheelchairLiftSim3D instance in serve mode
@@ -724,21 +724,26 @@ class WheelchairLiftSim3D:
                                     cmd = _cmd_queue.get_nowait()
                                 except _queue.Empty:
                                     break
+                                current_pos = (self.act_L.position + self.act_R.position) / 2.0
                                 if cmd == 'UP':
-                                    self.ctrl.set_target_position(ACT_STROKE)
-                                    ctrl_state["target"] = 1.0
+                                    new_target = min(self.ctrl.target_position + STEP_SIZE, ACT_STROKE)
+                                    self.ctrl.set_target_position(new_target)
+                                    ctrl_state["target"] = new_target / ACT_STROKE
+                                    print(f"[serve] UP  → target {new_target*1000:.1f} mm")
                                 elif cmd == 'DOWN':
-                                    self.ctrl.set_target_position(0.0)
-                                    ctrl_state["target"] = 0.0
+                                    new_target = max(self.ctrl.target_position - STEP_SIZE, 0.0)
+                                    self.ctrl.set_target_position(new_target)
+                                    ctrl_state["target"] = new_target / ACT_STROKE
+                                    print(f"[serve] DOWN → target {new_target*1000:.1f} mm")
                                 elif cmd == 'START':
                                     self.ctrl.reset_emergency_stop()
                                     self.act_L.reset_emergency_stop()
                                     self.act_R.reset_emergency_stop()
+                                    print("[serve] START — e-stop cleared")
                                 elif cmd == 'STOP':
-                                    # freeze at current position (graceful stop — no START needed to resume)
-                                    pos = (self.act_L.position + self.act_R.position) / 2.0
-                                    self.ctrl.set_target_position(pos)
-                                    ctrl_state["target"] = pos / max(ACT_STROKE, 1e-9)
+                                    self.ctrl.set_target_position(current_pos)
+                                    ctrl_state["target"] = current_pos / max(ACT_STROKE, 1e-9)
+                                    print(f"[serve] STOP — frozen at {current_pos*1000:.1f} mm")
                                 _cmd_queue.task_done()
 
                         for ch in key_reader.poll():

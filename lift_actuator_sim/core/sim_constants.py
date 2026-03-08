@@ -23,10 +23,10 @@ ACT_SHAFT_H = 0.145    # visible shaft at full extension; > stroke for overlap
 ACT_SIDE_Y  = SEAT_W / 2 + 0.045   # Y mount: outside seat, inside wheels
 ACT_X       = 0.0      # centred front-back
 
-# Rated physics (PA-14 1000 N @ 12 V)
-ACT_MAX_VEL  = 0.010   # m/s  (10 mm/s at rated load — datasheet typical)
-ACT_MAX_ACC  = 0.040   # m/s²
-ACT_RAMP_T   = 0.60    # s    (slow worm-gear ramp)
+# Rated physics (PA-14 1000 N @ 12 V) — sped up for visible demo
+ACT_MAX_VEL  = 0.050   # m/s  (50 mm/s — completes 1-inch step in ~0.5 s)
+ACT_MAX_ACC  = 0.200   # m/s²
+ACT_RAMP_T   = 0.10    # s
 ACT_EFF      = 0.70    # drivetrain efficiency
 
 # Arm geometry (extends inward from shaft top over the sling)
