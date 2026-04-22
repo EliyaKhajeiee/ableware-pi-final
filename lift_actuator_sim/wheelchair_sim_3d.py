@@ -383,115 +383,143 @@ class WheelchairLiftSim3D:
         _box([0.070, SEAT_W/2 - 0.110, 0.008],
              [fx + 0.12, 0, 0.143], color=C_FRAME_LT)
 
-    # ── Side actuators + sling connection ────────────────────────────────
+    # ── Pivot arm mechanism ───────────────────────────────────────────────────
 
     def _build_actuators(self):
         """
-        Two vertical linear actuators, one on each side of the seat.
-
-        Modelled on a PA-14 class actuator (1000 N, 4-inch stroke, 12/24 V DC).
+        Pivot-arm lift mechanism — one assembly per side.
 
         Each side:
-          housing  — fixed outer tube (static)
-          shaft    — inner rod, animated upward as actuator extends
-          end-cap  — clevis / mounting point at bottom
-          arm      — horizontal yoke from shaft top, extends inward to sling
-          straps   — two nylon webbing straps (front + rear) arm → sling corners
+          pivot bracket  — bolted to the rear upper frame post (static)
+          rigid arm      — square-section aluminium bar, rotates around pivot
+          linear actuator — diagonal PA-14 unit: motor body (static) + rod (animated)
+          sling straps   — two nylon webbing drops from arm tip to sling corners
         """
-        body_base_z        = SEAT_H
-        body_ctr_z         = body_base_z + ACT_BODY_H / 2
-        shaft_base_z       = body_base_z + ACT_BODY_H
-        self._shaft_base_z = shaft_base_z
-
-        # At rest (ext=0) the arm sits at shaft_base + shaft_h
-        arm_z0            = shaft_base_z + ACT_SHAFT_H
-        sling_top_z0      = SEAT_H + SLING_T
-        self._strap_len   = arm_z0 - sling_top_z0   # constant strap length
-
-        self._housing_ids = []
-        self._shaft_ids   = []
-        self._arm_ids     = []
+        self._arm_ids     = []   # [L, R] rotating arm bodies
+        self._act_rod_ids = []   # [L, R] animated actuator rod bodies
         self._strap_ids   = []   # 4 straps: L-front, L-rear, R-front, R-rear
 
-        # Motor housing height fraction (like a real PA-14: fatter bottom section)
-        motor_h = ACT_BODY_H * 0.38   # gearbox / motor end
-        tube_h  = ACT_BODY_H * 0.62   # actuator barrel
+        # Pre-compute initial actuator geometry (same for both sides)
+        θ0   = ARM_ANGLE_DOWN
+        Mx0  = PIVOT_X + ARM_ACT_D * math.cos(θ0)
+        Mz0  = PIVOT_Z + ARM_ACT_D * math.sin(θ0)
+        dx0  = Mx0 - ACT_BASE_X
+        dz0  = Mz0 - ACT_BASE_Z
+        L0   = math.sqrt(dx0 * dx0 + dz0 * dz0)
+        ux0, uz0 = dx0 / L0, dz0 / L0
+        act0_orn = _q(0, math.atan2(ux0, uz0), 0)   # initial actuator orientation
 
-        for sign, y in ((+1, ACT_SIDE_Y), (-1, -ACT_SIDE_Y)):
+        # Strap length: arm tip Z at rest minus sling-top Z
+        tip_z0          = PIVOT_Z + ARM_LEN * math.sin(θ0)
+        self._strap_len = tip_z0 - (SEAT_H + SLING_T)
 
-            # ── Motor / gearbox body (darker, wider — bottom) ──────────
-            motor_cz = body_base_z + motor_h / 2
-            _cyl(ACT_R * 1.28, motor_h,
-                 [ACT_X, y, motor_cz], color=C_ACT_MOTOR)
+        for sign, y_piv in ((+1, PIVOT_Y_OFF), (-1, -PIVOT_Y_OFF)):
 
-            # Mounting flange ring between motor and barrel
-            _cyl(ACT_R * 1.42, 0.012,
-                 [ACT_X, y, body_base_z + motor_h], color=C_CAP)
+            # ── Pivot bracket (bolted to rear vertical post) ───────────
+            _box([PVTBKT_W / 2, 0.016, PVTBKT_H / 2],
+                 [PIVOT_X, y_piv, PIVOT_Z], color=C_FRAME_DK)
+            # Gusset plate (triangular stiffener, approximated as a box)
+            _box([0.022, 0.012, 0.036],
+                 [PIVOT_X - 0.020, y_piv, PIVOT_Z - 0.022], color=C_FRAME_DK)
+            # Pivot pin (through-bolt, runs in Y)
+            _cyl(0.010, 0.060,
+                 [PIVOT_X, y_piv, PIVOT_Z], _q(math.pi / 2, 0, 0), C_FRAME_LT)
+            # Hex nut at pin end
+            _cyl(0.014, 0.012,
+                 [PIVOT_X, y_piv + sign * 0.038, PIVOT_Z],
+                 _q(math.pi / 2, 0, 0), C_CAP)
 
-            # Bottom clevis ear-plate + clevis pin
-            _box([0.022, 0.018, 0.030],
-                 [ACT_X, y, body_base_z - 0.030], color=C_CAP)
-            _cyl(0.006, 0.042, [ACT_X, y, body_base_z - 0.032],
-                 _q(math.pi/2, 0, 0), C_FRAME_LT)
+            # ── Rigid arm (visual box, animated each frame) ────────────
+            arm_cx = PIVOT_X + ARM_LEN / 2 * math.cos(θ0)
+            arm_cz = PIVOT_Z + ARM_LEN / 2 * math.sin(θ0)
+            arm_orn = _q(0, -θ0, 0)   # pitch around Y so X-axis points along arm
 
-            # Side mount bracket (attaches to wheelchair frame)
-            bkt_y = y - sign * (ACT_R * 1.28 + 0.014)
-            _box([0.042, 0.013, 0.056],
-                 [ACT_X, bkt_y, motor_cz], color=C_FRAME_DK)
-            # Bracket-to-frame bolt heads (two small cylinders)
-            for dz in (-0.014, +0.014):
-                _cyl(0.005, 0.005,
-                     [ACT_X, bkt_y - sign * 0.013, motor_cz + dz],
-                     _q(math.pi/2, 0, 0), C_FRAME_LT)
+            aid = _vbox([ARM_LEN / 2, ARM_W / 2, ARM_W / 2],
+                        [arm_cx, y_piv, arm_cz], arm_orn, C_FRAME_MD)
+            self._arm_ids.append(aid)
 
-            # Wiring / power cable exiting motor body
-            cable_y = y + sign * ACT_R * 0.88
-            _cyl(0.007, 0.058,
-                 [ACT_X - 0.032, cable_y, body_base_z + 0.032],
-                 _q(0, math.pi * 0.38, 0), C_CABLE)
+            # Reinforcing strip along arm top face (chrome highlight)
+            strip_id = _vbox([ARM_LEN / 2, ARM_W / 2 * 0.55, 0.004],
+                             [arm_cx, y_piv, arm_cz], arm_orn, C_FRAME_LT)
+            self._arm_ids.append(strip_id)   # paired: updated together with main arm
 
-            # ── Actuator barrel / tube (brushed aluminum, upper) ───────
-            tube_cz = body_base_z + motor_h + tube_h / 2
-            h = _cyl(ACT_R, tube_h,
-                     [ACT_X, y, tube_cz], color=C_ACT_HOUSE)
-            self._housing_ids.append(h)
+            # Sling attachment eye at arm tip (ball-joint sphere)
+            tip_x0 = PIVOT_X + ARM_LEN * math.cos(θ0)
+            _vsph(ARM_W * 1.5, [tip_x0, y_piv, tip_z0], C_FRAME_LT)
 
-            # Top end-cap disc
-            _cyl(ACT_R * 1.14, ACT_CAP_H,
-                 [ACT_X, y, body_base_z + ACT_BODY_H + ACT_CAP_H / 2],
-                 color=C_CAP)
+            # ── Actuator foot (clevis mount bolted to lower frame) ──────
+            _box([0.024, 0.018, 0.030],
+                 [ACT_BASE_X, y_piv, ACT_BASE_Z + 0.015], color=C_CAP)
+            _cyl(0.006, 0.040,
+                 [ACT_BASE_X, y_piv, ACT_BASE_Z + 0.028],
+                 _q(math.pi / 2, 0, 0), C_FRAME_LT)
+            # Foot mounting plate
+            _box([0.036, 0.026, 0.008],
+                 [ACT_BASE_X, y_piv, ACT_BASE_Z], color=C_FRAME_DK)
 
-            # ── Inner rod / shaft (animated) ───────────────────────────
-            shaft_ctr_z = shaft_base_z + ACT_SHAFT_H / 2
-            s = _vcyl(ACT_R * 0.46, ACT_SHAFT_H,
-                      [ACT_X, y, shaft_ctr_z], color=C_ACT_ROD)
-            self._shaft_ids.append(s)
+            # ── Motor / gearbox body (static, lower 38% of actuator) ───
+            motor_len = L0 * 0.38
+            mc_x = ACT_BASE_X + ux0 * motor_len / 2
+            mc_z = ACT_BASE_Z + uz0 * motor_len / 2
+            _cyl(ACT_NEW_MOTOR_R, motor_len,
+                 [mc_x, y_piv, mc_z], act0_orn, C_ACT_MOTOR)
+            # Power cable stub exiting motor body
+            cable_side = sign * ACT_NEW_MOTOR_R * 1.1
+            _cyl(0.007, 0.045,
+                 [mc_x - 0.018, y_piv + cable_side, mc_z - 0.012],
+                 _q(0, math.pi * 0.30, 0), C_CABLE)
 
-            # ── Horizontal yoke arm (animated, chrome) ─────────────────
-            arm_len = ACT_SIDE_Y - ARM_INNER_Y
-            arm_cy  = (y + sign * ARM_INNER_Y) / 2
-            a = _vcyl(ARM_R, arm_len,
-                      [ACT_X, arm_cy, arm_z0], _q(math.pi/2, 0, 0), C_ARM)
-            self._arm_ids.append(a)
-            # Ball joint at arm inner tip
-            _vsph(ARM_R * 1.8, [ACT_X, sign * ARM_INNER_Y, arm_z0], C_ARM)
+            # Flange ring between motor and barrel
+            fl_x = ACT_BASE_X + ux0 * motor_len
+            fl_z = ACT_BASE_Z + uz0 * motor_len
+            _cyl(ACT_NEW_MOTOR_R * 1.28, 0.010,
+                 [fl_x, y_piv, fl_z], act0_orn, C_CAP)
 
-            # ── Nylon webbing suspension straps (animated) ─────────────
-            strap_ctr_z = arm_z0 - self._strap_len / 2
+            # ── Actuator barrel (static outer sleeve, upper 38%) ────────
+            barrel_len = L0 * 0.38
+            bc_x = fl_x + ux0 * barrel_len / 2
+            bc_z = fl_z + uz0 * barrel_len / 2
+            _cyl(ACT_NEW_R, barrel_len,
+                 [bc_x, y_piv, bc_z], act0_orn, C_ACT_HOUSE)
+            # End-cap at barrel tip
+            cap_x = fl_x + ux0 * barrel_len
+            cap_z = fl_z + uz0 * barrel_len
+            _cyl(ACT_NEW_R * 1.18, 0.010,
+                 [cap_x, y_piv, cap_z], act0_orn, C_CAP)
+
+            # ── Animated inner rod (extends from barrel exit to arm) ────
+            rod_base_x = fl_x + ux0 * barrel_len * 0.10   # starts just inside barrel tip
+            rod_base_z = fl_z + uz0 * barrel_len * 0.10
+            rod_len = L0 * 0.62   # slightly longer than barrel for overlap
+            rod_cx = rod_base_x + ux0 * rod_len / 2
+            rod_cz = rod_base_z + uz0 * rod_len / 2
+            rid = _vcyl(ACT_NEW_ROD_R, rod_len,
+                        [rod_cx, y_piv, rod_cz], act0_orn, C_ACT_ROD)
+            self._act_rod_ids.append(rid)
+
+            # Clevis / rod-end at actuator tip (animated with rod)
+            self._act_rod_ids.append(
+                _vbox([0.018, 0.012, 0.014],
+                      [Mx0, y_piv, Mz0], color=C_CAP)
+            )
+
+            # ── Suspension straps (front + rear, animated) ─────────────
+            sling_top_z = SEAT_H + SLING_T
             for tx in (TIE_X_F, TIE_X_R):
-                t = _vbox([TIE_W / 2, SLING_STRAP_W / 2, self._strap_len / 2],
-                          [tx, sign * ARM_INNER_Y, strap_ctr_z],
-                          color=C_TIE)
+                sdx = tx - tip_x0
+                sdz = sling_top_z - tip_z0
+                sL  = math.sqrt(sdx * sdx + sdz * sdz)
+                sorn = _q(0, math.atan2(sdx / sL, sdz / sL), 0) if sL > 1e-6 else _q()
+                mid_x = (tip_x0 + tx) / 2
+                mid_z = (tip_z0 + sling_top_z) / 2
+                t = _vbox([TIE_W / 2, SLING_STRAP_W / 2, sL / 2],
+                          [mid_x, y_piv, mid_z], sorn, C_TIE)
                 self._strap_ids.append(t)
 
-        # ── Structural cross-braces (span motor-body width) ────────────
-        xb_r = ACT_R * 1.28   # match motor housing radius
-        _tube(ACT_X, -ACT_SIDE_Y + xb_r, ACT_XBRACE_Z,
-              ACT_X,  ACT_SIDE_Y - xb_r, ACT_XBRACE_Z,
-              r=TUBE_R * 1.5, color=C_FRAME_DK)
-        _tube(ACT_X, -ACT_SIDE_Y + xb_r, ACT_XBRACE_Z + ACT_BODY_H * 0.38,
-              ACT_X,  ACT_SIDE_Y - xb_r, ACT_XBRACE_Z + ACT_BODY_H * 0.38,
-              r=TUBE_R * 1.2, color=C_FRAME_MD)
+        # ── Cross-brace connecting both pivot brackets ─────────────────
+        _tube(PIVOT_X, -PIVOT_Y_OFF + PVTBKT_W, PIVOT_Z,
+              PIVOT_X,  PIVOT_Y_OFF - PVTBKT_W, PIVOT_Z,
+              r=TUBE_R * 1.6, color=C_FRAME_DK)
 
     # ── Sling ─────────────────────────────────────────────────────────────
 
@@ -540,37 +568,37 @@ class WheelchairLiftSim3D:
     # ── Static 3-D annotations ───────────────────────────────────────────
 
     def _build_labels(self):
-        """Minimal 3-D annotations — clean enough for a live demo."""
-        # Single floating title above the device (centred)
+        title_z = PIVOT_Z + ARM_LEN + 0.32
         p.addUserDebugText(
-            "SLING LIFT ACTUATOR SYSTEM",
-            [0.0, 0.0, SEAT_H + ACT_BODY_H + ACT_SHAFT_H + ACT_STROKE + 0.30],
+            "PIVOT-ARM HIP LIFT SYSTEM",
+            [0.0, 0.0, title_z],
             textColorRGB=[0.90, 0.92, 0.95], textSize=1.10, lifeTime=0)
         p.addUserDebugText(
-            "PA-14 Class  |  4-inch Stroke  |  12 / 24 V DC",
-            [0.0, 0.0, SEAT_H + ACT_BODY_H + ACT_SHAFT_H + ACT_STROKE + 0.18],
+            "PA-14 Class  |  4-inch Stroke  |  12 / 24 V DC  |  Pivot Arm Drive",
+            [0.0, 0.0, title_z - 0.12],
             textColorRGB=C_LABEL_Y, textSize=0.75, lifeTime=0)
 
     def _build_lift_indicator(self):
-        """
-        Static vertical ruler to the right of the right actuator,
-        showing the full 4-inch stroke with percentage tick marks.
-        """
-        z_bot = SEAT_H + ACT_BODY_H + ACT_SHAFT_H
-        z_top = z_bot + ACT_STROKE
+        """Vertical ruler showing sling height range (rest → full lift)."""
+        tip_z_rest = PIVOT_Z + ARM_LEN * math.sin(ARM_ANGLE_DOWN)
+        tip_z_full = PIVOT_Z + ARM_LEN * math.sin(ARM_ANGLE_UP)
+        # Ruler shows SLING height (tip minus constant strap length)
+        # Approximate strap_len here since the object isn't built yet
+        approx_strap = tip_z_rest - (SEAT_H + SLING_T)
+        z_bot = tip_z_rest - approx_strap
+        z_top = tip_z_full - approx_strap
         rx    = RULER_X
 
-        # Ruler spine
         p.addUserDebugLine([rx, 0, z_bot], [rx, 0, z_top],
                            C_RULER, lineWidth=3, lifeTime=0)
 
-        # Tick marks and labels at 0 %, 25 %, 50 %, 75 %, 100 %
-        for frac, label in ((0.0, "0%  (down)"),
+        total_rise_in = (z_top - z_bot) * 39.37   # metres → inches
+        for frac, label in ((0.0,  "0%  (seated)"),
                              (0.25, "25%"),
                              (0.50, "50%"),
                              (0.75, "75%"),
-                             (1.0, "100% (4 in)")):
-            zt = z_bot + frac * ACT_STROKE
+                             (1.0,  f"100% ({total_rise_in:.1f} in)")):
+            zt = z_bot + frac * (z_top - z_bot)
             p.addUserDebugLine([rx - 0.016, 0, zt], [rx + 0.016, 0, zt],
                                C_RULER, lineWidth=2, lifeTime=0)
             p.addUserDebugText(label, [rx + 0.022, 0, zt],
@@ -581,63 +609,97 @@ class WheelchairLiftSim3D:
     def _update_visuals(self, ext: float, stalled: bool,
                         overloaded: bool, at_target: bool,
                         force_per_act: float):
-        # Colour coding
-        # Shaft colour shows operational state; housing stays aluminum
+        # ── Colour state ───────────────────────────────────────────────
         if stalled or overloaded:
-            shaft_c = C_ACT_DEAD
-            sling_c = C_SLING_DN
-            arr_c   = [0.95, 0.15, 0.10]
+            arm_c, sling_c, arr_c = C_ACT_DEAD, C_SLING_DN, [0.95, 0.15, 0.10]
         elif at_target and ext > 0.002:
-            shaft_c = C_ACT_OK
-            sling_c = C_SLING_UP
-            arr_c   = [0.18, 0.90, 0.30]
+            arm_c, sling_c, arr_c = C_ACT_OK,   C_SLING_UP, [0.18, 0.90, 0.30]
         elif ext > ACT_STROKE * 0.72:
-            shaft_c = C_ACT_WARN
-            sling_c = C_SLING_DN
-            arr_c   = [0.95, 0.70, 0.10]
+            arm_c, sling_c, arr_c = C_ACT_WARN,  C_SLING_DN, [0.95, 0.70, 0.10]
         elif ext > 0.002:
-            shaft_c = C_ACT_OK
-            sling_c = C_SLING_DN
-            arr_c   = [0.18, 0.90, 0.30]
+            arm_c, sling_c, arr_c = C_ACT_OK,   C_SLING_DN, [0.18, 0.90, 0.30]
         else:
-            shaft_c = C_ACT_ROD
-            sling_c = C_SLING_DN
-            arr_c   = [0.55, 0.55, 0.60]
-        act_c = shaft_c   # kept for arm recolor
+            arm_c, sling_c, arr_c = C_ACT_ROD,  C_SLING_DN, [0.55, 0.55, 0.60]
 
-        arm_z      = self._shaft_base_z + ACT_SHAFT_H + ext
-        sling_top  = SEAT_H + SLING_T + ext
-        strap_ctr  = (arm_z + sling_top) / 2
-        arm_orn    = _q(math.pi / 2, 0, 0)
+        # ── Arm angle from actuator extension (linear interpolation) ───
+        t = ext / max(ACT_STROKE, 1e-9)
+        θ = ARM_ANGLE_DOWN + t * (ARM_ANGLE_UP - ARM_ANGLE_DOWN)
+        arm_orn = _q(0, -θ, 0)   # pitch around Y rotates X-axis to angle θ
 
-        # Force arrow scale: 0.05 m per 100 N, max 0.30 m
+        # Geometry for THIS frame
+        tip_x  = PIVOT_X + ARM_LEN     * math.cos(θ)
+        tip_z  = PIVOT_Z + ARM_LEN     * math.sin(θ)
+        act_x  = PIVOT_X + ARM_ACT_D   * math.cos(θ)   # actuator arm-attachment
+        act_z  = PIVOT_Z + ARM_ACT_D   * math.sin(θ)
+
+        # Actuator rod direction (from foot to arm-attachment)
+        rdx = act_x - ACT_BASE_X
+        rdz = act_z - ACT_BASE_Z
+        rL  = math.sqrt(rdx * rdx + rdz * rdz)
+        rux, ruz = rdx / rL, rdz / rL
+        rod_orn = _q(0, math.atan2(rux, ruz), 0)
+
+        # Precompute rest-length to find rod base position (fixed housing exit)
+        θ0 = ARM_ANGLE_DOWN
+        dx0 = PIVOT_X + ARM_ACT_D * math.cos(θ0) - ACT_BASE_X
+        dz0 = PIVOT_Z + ARM_ACT_D * math.sin(θ0) - ACT_BASE_Z
+        L0  = math.sqrt(dx0 * dx0 + dz0 * dz0)
+        ux0 = dx0 / L0;  uz0 = dz0 / L0
+        rod_base_x = ACT_BASE_X + ux0 * L0 * 0.38 * 1.10   # barrel exit (fixed)
+        rod_base_z = ACT_BASE_Z + uz0 * L0 * 0.38 * 1.10
+
+        # Sling height follows the arm tip minus constant strap length
+        sling_top_z = tip_z - self._strap_len
+        sling_cz    = sling_top_z - SLING_T / 2   # centre of sling panel
+
+        # Force arrow scale
         arrow_len = min(0.30, force_per_act / 100.0 * 0.05)
 
         strap_idx = 0
-        for i, (sign, y) in enumerate(((+1, ACT_SIDE_Y), (-1, -ACT_SIDE_Y))):
-            # shaft rises with extension
-            shaft_ctr_z = self._shaft_base_z + ACT_SHAFT_H / 2 + ext
-            _move(self._shaft_ids[i], [ACT_X, y, shaft_ctr_z])
-            _recolor(self._shaft_ids[i],   shaft_c)
-            _recolor(self._housing_ids[i], C_ACT_HOUSE)   # always aluminum
+        for i, (sign, y_piv) in enumerate(((+1, PIVOT_Y_OFF), (-1, -PIVOT_Y_OFF))):
+            arm_body_idx  = i * 2          # main arm body
+            strip_body_idx = i * 2 + 1    # chrome strip body
 
-            # yoke arm rises too
-            arm_cy = (y + sign * ARM_INNER_Y) / 2
-            _move(self._arm_ids[i], [ACT_X, arm_cy, arm_z], arm_orn)
-            _recolor(self._arm_ids[i], act_c)
+            # Move arm (main body + highlight strip)
+            arm_cx = PIVOT_X + ARM_LEN / 2 * math.cos(θ)
+            arm_cz = PIVOT_Z + ARM_LEN / 2 * math.sin(θ)
+            _move(self._arm_ids[arm_body_idx],  [arm_cx, y_piv, arm_cz], arm_orn)
+            _move(self._arm_ids[strip_body_idx], [arm_cx, y_piv, arm_cz], arm_orn)
+            _recolor(self._arm_ids[arm_body_idx],  arm_c)
+            _recolor(self._arm_ids[strip_body_idx], C_FRAME_LT)
 
-            # webbing straps
+            # Move actuator rod (rod body + clevis end)
+            rod_cx = (rod_base_x + act_x) / 2
+            rod_cz = (rod_base_z + act_z) / 2
+            rod_body_idx   = i * 2
+            clevis_body_idx = i * 2 + 1
+            _move(self._act_rod_ids[rod_body_idx],
+                  [rod_cx, y_piv, rod_cz], rod_orn)
+            _move(self._act_rod_ids[clevis_body_idx],
+                  [act_x, y_piv, act_z], arm_orn)
+            _recolor(self._act_rod_ids[rod_body_idx],    arm_c)
+            _recolor(self._act_rod_ids[clevis_body_idx], C_CAP)
+
+            # Suspension straps (from arm tip to sling corners)
             for tx in (TIE_X_F, TIE_X_R):
-                _move(self._strap_ids[strap_idx],
-                      [tx, sign * ARM_INNER_Y, strap_ctr])
+                sling_corner_z = sling_top_z
+                sdx = tx - tip_x
+                sdz = sling_corner_z - tip_z
+                sL  = math.sqrt(sdx * sdx + sdz * sdz)
+                if sL > 1e-6:
+                    sorn = _q(0, math.atan2(sdx / sL, sdz / sL), 0)
+                else:
+                    sorn = _q()
+                mid_x = (tip_x + tx) / 2
+                mid_z = (tip_z + sling_corner_z) / 2
+                _move(self._strap_ids[strap_idx], [mid_x, y_piv, mid_z], sorn)
                 _recolor(self._strap_ids[strap_idx], C_TIE)
                 strap_idx += 1
 
-            # force arrows: green upward arrows at arm inner tips
-            tip_y  = sign * ARM_INNER_Y
-            base   = [ACT_X, tip_y, arm_z]
-            tip    = [ACT_X, tip_y, arm_z + arrow_len]
-            key    = f'arr{i}'
+            # Force arrows pointing upward from arm tip
+            base = [tip_x, y_piv, tip_z]
+            tip  = [tip_x, y_piv, tip_z + arrow_len]
+            key  = f'arr{i}'
             if key in self._arrows:
                 p.addUserDebugLine(base, tip, arr_c, lineWidth=4,
                                    replaceItemUniqueId=self._arrows[key])
@@ -645,16 +707,19 @@ class WheelchairLiftSim3D:
                 self._arrows[key] = p.addUserDebugLine(
                     base, tip, arr_c, lineWidth=4, lifeTime=0)
 
-        # sling assembly (straps + rails)
-        sz = SEAT_H + SLING_T / 2 + ext
+        # ── Sling assembly ─────────────────────────────────────────────
         for bid, ox, oy in self._sling_parts:
-            _move(bid, [ox, oy, sz])
+            _move(bid, [ox, oy, sling_cz])   # sling_cz is the panel centre
             _recolor(bid, sling_c)
 
-        # lift-position indicator dot on the ruler
-        z_bot = self._shaft_base_z + ACT_SHAFT_H
-        z_ind = z_bot + ext
-        rx    = RULER_X
+        # ── Lift indicator (ruler pointer) ─────────────────────────────
+        # Map sling rise to ruler: sling_top_z at rest → z_bot, at full → z_top
+        tip_z_rest = PIVOT_Z + ARM_LEN * math.sin(ARM_ANGLE_DOWN)
+        tip_z_full = PIVOT_Z + ARM_LEN * math.sin(ARM_ANGLE_UP)
+        z_bot = tip_z_rest - self._strap_len
+        z_top = tip_z_full - self._strap_len
+        z_ind = z_bot + t * (z_top - z_bot)
+        rx = RULER_X
         ind_from = [rx, 0, z_ind]
         ind_to   = [rx - 0.032, 0, z_ind]
         if self._ind_line_id >= 0:

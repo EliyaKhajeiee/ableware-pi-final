@@ -54,6 +54,37 @@ SLING_RAIL_W  = 0.028  # side rail width  (28 mm)
 RULER_X     = ACT_SIDE_Y + 0.095   # X position of stroke ruler
 
 ACTUATOR_STROKE = ACT_STROKE   # back-compat alias for tests
+
+# ── Pivot arm mechanism ─────────────────────────────────────────────────────
+# One symmetric arm per side.  Pivot is on the rear upper frame post; arm
+# extends forward (+X) at a slight downward angle and rotates upward when
+# the actuator extends.  The sling hangs from the arm tip via short straps.
+
+PIVOT_X      = -SEAT_D / 2 + 0.030   # X: rear seat frame post (~3 cm inboard)
+PIVOT_Z      =  SEAT_H + 0.220        # Z: above seat (~armrest height)
+PIVOT_Y_OFF  =  SEAT_W / 2 - 0.022   # Y magnitude from centre-line to pivot
+
+ARM_LEN     = 0.420    # pivot → sling-tip            (~16.5 in)
+ARM_ACT_D   = 0.310    # pivot → actuator attachment  (~12.2 in)
+ARM_W       = 0.022    # arm cross-section half-width  (44 mm square tube)
+
+ARM_ANGLE_DOWN = -0.1396   # −8°  rest angle  (radians from horizontal)
+ARM_ANGLE_UP   =  0.2094   # +12° lift angle  (radians from horizontal)
+
+# Fixed actuator foot — bolted to the rear-lower wheelchair frame
+ACT_BASE_X = PIVOT_X + 0.070   # slightly forward of the pivot in X
+ACT_BASE_Z = SEAT_H - 0.100    # below seat surface
+
+# Actuator housing dimensions (slimmer PA-14 body on a diagonal mount)
+ACT_NEW_R       = 0.018   # barrel outer radius
+ACT_NEW_MOTOR_R = 0.024   # motor-end outer radius (wider)
+ACT_NEW_MOTOR_H = 0.078   # motor-body length
+ACT_NEW_ROD_R   = 0.009   # inner rod radius
+
+# Pivot bracket plate
+PVTBKT_W = 0.034
+PVTBKT_H = 0.082
+
 # ── Colour palette ─────────────────────────────────────────────────────────
 
 C_FRAME_DK  = [0.12, 0.13, 0.15, 1.0]   # near-black structural steel
