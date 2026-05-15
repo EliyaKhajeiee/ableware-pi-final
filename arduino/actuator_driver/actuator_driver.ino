@@ -1,27 +1,23 @@
-// Ableware — Dual Linear Actuator Driver
-// Protocol: single-char commands over Serial at 115200 baud, newline-terminated
-//   U  → nudge both actuators UP   (extend)
-//   D  → nudge both actuators DOWN (retract)
-//   S  → stop immediately
-//   E  → emergency stop (same as S, sets e-stop flag)
-//   R  → resume (clear e-stop flag)
-//
-// Adjust pin numbers and PULSE_MS to match your hardware.
+#include <IRremote.hpp>
 
-// ---- Pin assignments (L298N / IBT-2 style H-bridge) -------------------
-// Left actuator
-const int L_INA = 4;   // forward signal
-const int L_INB = 5;   // reverse signal
-const int L_EN  = 6;   // PWM enable (connect to ENA; use 255 if jumpered high)
+// ---- Pins -------------------------------------------------------------
+const int IR_PIN = 11;
 
-// Right actuator
-const int R_INA = 7;
-const int R_INB = 8;
-const int R_EN  = 9;   // PWM enable (connect to ENB)
+const int A1_IN1 = 7;
+const int A1_IN2 = 8;
+
+const int A2_IN3 = 9;
+const int A2_IN4 = 10;
+
+// ---- IR button codes --------------------------------------------------
+const uint8_t BTN_UP   = 0x09;
+const uint8_t BTN_DOWN = 0x07;
+const uint8_t BTN_STOP = 0x1C;
 
 // ---- Tuning -----------------------------------------------------------
-const int  PULSE_MS  = 150;   // ms to run motors per UP/DOWN command — "barely moves"
-const byte SPEED     = 180;   // PWM duty 0-255; lower = slower
+// How long each UP/DOWN command runs before auto-stopping.
+// Increase to move more per press, decrease for less.
+const int PULSE_MS = 200;
 
 // ---- State ------------------------------------------------------------
 bool eStopped = false;
@@ -31,26 +27,35 @@ String rxBuf  = "";
 void setup() {
   Serial.begin(115200);
 
-  pinMode(L_INA, OUTPUT);
-  pinMode(L_INB, OUTPUT);
-  pinMode(L_EN,  OUTPUT);
-  pinMode(R_INA, OUTPUT);
-  pinMode(R_INB, OUTPUT);
-  pinMode(R_EN,  OUTPUT);
+  pinMode(A1_IN1, OUTPUT);
+  pinMode(A1_IN2, OUTPUT);
+  pinMode(A2_IN3, OUTPUT);
+  pinMode(A2_IN4, OUTPUT);
 
-  stopAll();
+  stopBoth();
+
+  IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
+
   Serial.println("READY");
 }
 
 // ---- Loop -------------------------------------------------------------
 void loop() {
+  // ---- IR input -------------------------------------------------------
+  if (IrReceiver.decode()) {
+    uint8_t cmd = IrReceiver.decodedIRData.command;
+    if (cmd == BTN_UP   && !eStopped) nudgeUp();
+    else if (cmd == BTN_DOWN && !eStopped) nudgeDown();
+    else if (cmd == BTN_STOP) stopBoth();
+    IrReceiver.resume();
+  }
+
+  // ---- Serial input ---------------------------------------------------
   while (Serial.available()) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
       rxBuf.trim();
-      if (rxBuf.length() > 0) {
-        handleCommand(rxBuf[0]);
-      }
+      if (rxBuf.length() > 0) handleSerial(rxBuf[0]);
       rxBuf = "";
     } else {
       rxBuf += c;
@@ -58,69 +63,53 @@ void loop() {
   }
 }
 
-// ---- Command handler --------------------------------------------------
-void handleCommand(char cmd) {
+// ---- Serial command handler -------------------------------------------
+void handleSerial(char cmd) {
   switch (cmd) {
-    case 'U':
-    case 'u':
-      if (!eStopped) nudge(true);
+    case 'U': case 'u':
+      if (!eStopped) nudgeUp();
       break;
-    case 'D':
-    case 'd':
-      if (!eStopped) nudge(false);
+    case 'D': case 'd':
+      if (!eStopped) nudgeDown();
       break;
-    case 'S':
-    case 's':
-      stopAll();
+    case 'S': case 's':
+      stopBoth();
       break;
-    case 'E':
-    case 'e':
+    case 'E': case 'e':
       eStopped = true;
-      stopAll();
+      stopBoth();
       break;
-    case 'R':
-    case 'r':
+    case 'R': case 'r':
       eStopped = false;
-      stopAll();
+      stopBoth();
       break;
     default:
       break;
   }
 }
 
-// ---- Motor helpers ----------------------------------------------------
-void nudge(bool extend) {
-  // Drive both actuators in the same direction for PULSE_MS, then stop.
-  if (extend) {
-    // Extend (UP)
-    analogWrite(L_EN, SPEED);
-    digitalWrite(L_INA, HIGH);
-    digitalWrite(L_INB, LOW);
-
-    analogWrite(R_EN, SPEED);
-    digitalWrite(R_INA, HIGH);
-    digitalWrite(R_INB, LOW);
-  } else {
-    // Retract (DOWN)
-    analogWrite(L_EN, SPEED);
-    digitalWrite(L_INA, LOW);
-    digitalWrite(L_INB, HIGH);
-
-    analogWrite(R_EN, SPEED);
-    digitalWrite(R_INA, LOW);
-    digitalWrite(R_INB, HIGH);
-  }
-
+// ---- Motion helpers ---------------------------------------------------
+void nudgeUp() {
+  digitalWrite(A1_IN1, HIGH);
+  digitalWrite(A1_IN2, LOW);
+  digitalWrite(A2_IN3, HIGH);
+  digitalWrite(A2_IN4, LOW);
   delay(PULSE_MS);
-  stopAll();
+  stopBoth();
 }
 
-void stopAll() {
-  digitalWrite(L_INA, LOW);
-  digitalWrite(L_INB, LOW);
-  analogWrite(L_EN, 0);
+void nudgeDown() {
+  digitalWrite(A1_IN1, LOW);
+  digitalWrite(A1_IN2, HIGH);
+  digitalWrite(A2_IN3, LOW);
+  digitalWrite(A2_IN4, HIGH);
+  delay(PULSE_MS);
+  stopBoth();
+}
 
-  digitalWrite(R_INA, LOW);
-  digitalWrite(R_INB, LOW);
-  analogWrite(R_EN, 0);
+void stopBoth() {
+  digitalWrite(A1_IN1, LOW);
+  digitalWrite(A1_IN2, LOW);
+  digitalWrite(A2_IN3, LOW);
+  digitalWrite(A2_IN4, LOW);
 }
