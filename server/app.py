@@ -5,6 +5,8 @@ import json
 import logging
 from pathlib import Path
 
+import yaml
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
@@ -33,8 +35,24 @@ async def _state_poll_loop() -> None:
             await _broadcast_state()
 
 
+def _load_config() -> dict:
+    cfg_path = Path(__file__).parent.parent / "config.yaml"
+    if cfg_path.exists():
+        with cfg_path.open() as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
 @app.on_event("startup")
 async def _startup() -> None:
+    cfg = _load_config()
+    arduino_cfg = cfg.get("arduino", {})
+    if arduino_cfg.get("enabled", False):
+        from server.arduino_serial import init_arduino
+        init_arduino(
+            port=arduino_cfg.get("port", "/dev/cu.usbmodem14101"),
+            baud=arduino_cfg.get("baud", 115200),
+        )
     asyncio.create_task(_state_poll_loop())
 
 

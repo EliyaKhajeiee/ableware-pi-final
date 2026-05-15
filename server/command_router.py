@@ -7,6 +7,7 @@ from typing import Optional
 
 import httpx
 
+from server.arduino_serial import get_arduino
 from server.models import CommandMessage, SimulationState, StateUpdate
 from server.state import get_state
 from server.ws_manager import get_manager
@@ -27,6 +28,18 @@ async def route_command(msg: CommandMessage) -> None:
 
     app_state = get_state()
     app_state.record_command(cmd, msg.source, msg.timestamp or time.time())
+
+    # Forward to Arduino hardware
+    arduino = get_arduino()
+    if arduino and arduino.connected:
+        if cmd == "UP":
+            arduino.up()
+        elif cmd == "DOWN":
+            arduino.down()
+        elif cmd == "STOP":
+            arduino.emergency_stop()
+        elif cmd == "START":
+            arduino.resume()
 
     # Forward to simulation stub
     try:
@@ -58,11 +71,13 @@ async def _fetch_sim_state() -> Optional[SimulationState]:
 async def _broadcast_state() -> None:
     app_state = get_state()
     manager = get_manager()
+    arduino = get_arduino()
     update = StateUpdate(
         last_command=app_state.last_command,
         last_command_source=app_state.last_command_source,
         simulation_state=app_state.simulation_state,
         command_history=list(app_state.history),
         pi_connected=manager.pi_connected,
+        arduino_connected=arduino.connected if arduino else False,
     )
     await manager.broadcast_to_dashboards(update.model_dump_json())

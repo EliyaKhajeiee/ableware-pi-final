@@ -44,6 +44,7 @@ interface StateUpdate {
   simulation_state: SimulationState;
   command_history: HistoryEntry[];
   pi_connected: boolean;
+  arduino_connected: boolean;
 }
 
 // ---- Constants -----------------------------------------------------
@@ -59,6 +60,7 @@ const HUB_WS_URL =
 export function MainControl() {
   const [hubConnected, setHubConnected] = useState(false);
   const [piConnected, setPiConnected] = useState(false);
+  const [arduinoConnected, setArduinoConnected] = useState(false);
   const [simState, setSimState] = useState<SimulationState | null>(null);
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const [lastSource, setLastSource] = useState<string | null>(null);
@@ -86,6 +88,7 @@ export function MainControl() {
         if (data.type === 'state_update') {
           setSimState(data.simulation_state);
           setPiConnected(data.pi_connected);
+          setArduinoConnected(data.arduino_connected);
           setLastCommand(data.last_command);
           setLastSource(data.last_command_source);
           setHistory(data.command_history.slice(0, 10));
@@ -158,6 +161,12 @@ export function MainControl() {
               <div className="flex items-center gap-1">
                 {piConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
                 Pi
+              </div>
+            </Badge>
+            <Badge className={`${arduinoConnected ? 'bg-blue-500' : 'bg-gray-500'} text-white px-3 py-1`}>
+              <div className="flex items-center gap-1">
+                {arduinoConnected ? <Activity className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                Arduino
               </div>
             </Badge>
           </div>
