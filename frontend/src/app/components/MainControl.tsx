@@ -259,6 +259,14 @@ export function MainControl() {
         </div>
         <div className="grid grid-cols-3 gap-3">
           <Button
+            onClick={() => sendCommand('SET_FLOOR')}
+            disabled={!hubConnected || isHoming}
+            className="h-14 bg-orange-500 hover:bg-orange-600 col-span-3 text-white font-bold"
+            size="lg"
+          >
+            ★ SET AS FLOOR  <span className="text-sm font-normal ml-2 opacity-80">(locks current position as base — no movement)</span>
+          </Button>
+          <Button
             onClick={() => sendCommand('HOME')}
             disabled={!hubConnected || !arduinoConnected || isHoming}
             className="h-14 bg-purple-600 hover:bg-purple-700 col-span-3 text-white"

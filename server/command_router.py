@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 SIM_URL = os.environ.get("SIM_URL", "http://localhost:8001")
 
-_VALID_COMMANDS = {"START", "STOP", "UP", "DOWN", "LEFT", "RIGHT", "HOME"}
+_VALID_COMMANDS = {"START", "STOP", "UP", "DOWN", "LEFT", "RIGHT", "HOME", "SET_FLOOR"}
 
 # HOME sequence: retract this many times to guarantee physical bottom,
 # then extend HOME_STEPS to reach the floor position.
@@ -58,6 +58,13 @@ async def route_command(msg: CommandMessage) -> None:
 
     if cmd == "HOME":
         asyncio.create_task(_run_home_sequence())
+        return
+
+    if cmd == "SET_FLOOR":
+        app_state.position_steps = 0
+        app_state.is_homed = True
+        logger.info("Floor set at current position")
+        await _broadcast_state()
         return
 
     # Forward to Arduino
