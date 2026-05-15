@@ -40,8 +40,6 @@ class StateUpdate(BaseModel):
     pi_connected: bool = False
     arduino_connected: bool = False
     position_steps: int = 0
-    is_homed: bool = False
-    is_homing: bool = False
 
 
 class HealthResponse(BaseModel):

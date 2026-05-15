@@ -46,8 +46,6 @@ interface StateUpdate {
   pi_connected: boolean;
   arduino_connected: boolean;
   position_steps: number;
-  is_homed: boolean;
-  is_homing: boolean;
 }
 
 // ---- Constants -----------------------------------------------------
@@ -66,8 +64,6 @@ export function MainControl() {
   const [arduinoConnected, setArduinoConnected] = useState(false);
   const [simState, setSimState] = useState<SimulationState | null>(null);
   const [positionSteps, setPositionSteps] = useState(0);
-  const [isHomed, setIsHomed] = useState(false);
-  const [isHoming, setIsHoming] = useState(false);
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const [lastSource, setLastSource] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -99,8 +95,6 @@ export function MainControl() {
           setLastSource(data.last_command_source);
           setHistory(data.command_history.slice(0, 10));
           setPositionSteps(data.position_steps);
-          setIsHomed(data.is_homed);
-          setIsHoming(data.is_homing);
         }
       } catch {
         // ignore malformed messages
@@ -243,37 +237,11 @@ export function MainControl() {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-semibold">Manual Controls</h2>
-          <div className="flex items-center gap-2">
-            {isHoming && (
-              <Badge className="bg-yellow-500 text-white px-3 py-1 animate-pulse">Homing…</Badge>
-            )}
-            {isHomed && !isHoming && (
-              <Badge className="bg-green-100 text-green-800 px-3 py-1">
-                Step {positionSteps} from floor
-              </Badge>
-            )}
-            {!isHomed && !isHoming && (
-              <Badge className="bg-gray-200 text-gray-600 px-3 py-1">Not homed</Badge>
-            )}
-          </div>
+          <Badge className="bg-blue-100 text-blue-800 px-3 py-1 text-sm font-semibold">
+            {positionSteps} / 7
+          </Badge>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Button
-            onClick={() => sendCommand('SET_FLOOR')}
-            disabled={!hubConnected || isHoming}
-            className="h-14 bg-orange-500 hover:bg-orange-600 col-span-3 text-white font-bold"
-            size="lg"
-          >
-            ★ SET AS FLOOR  <span className="text-sm font-normal ml-2 opacity-80">(locks current position as base — no movement)</span>
-          </Button>
-          <Button
-            onClick={() => sendCommand('HOME')}
-            disabled={!hubConnected || !arduinoConnected || isHoming}
-            className="h-14 bg-purple-600 hover:bg-purple-700 col-span-3 text-white"
-            size="lg"
-          >
-            ⌂ HOME  <span className="text-sm font-normal ml-2 opacity-80">(retracts fully → rises to floor)</span>
-          </Button>
           <Button
             onClick={() => sendCommand('START')}
             disabled={!hubConnected}
@@ -284,7 +252,7 @@ export function MainControl() {
           </Button>
           <Button
             onClick={() => sendCommand('UP')}
-            disabled={!hubConnected || isEmergency || isHoming || (isHomed && positionSteps >= 7)}
+            disabled={!hubConnected || isEmergency || positionSteps >= 7}
             variant="outline"
             className="h-14 col-span-1"
             size="lg"
@@ -294,7 +262,7 @@ export function MainControl() {
           <div />
           <Button
             onClick={() => sendCommand('DOWN')}
-            disabled={!hubConnected || isEmergency || isHoming || (isHomed && positionSteps <= 0)}
+            disabled={!hubConnected || isEmergency || positionSteps <= 0}
             variant="outline"
             className="h-14 col-span-1"
             size="lg"
@@ -303,7 +271,7 @@ export function MainControl() {
           </Button>
           <Button
             onClick={() => sendCommand('LEFT')}
-            disabled={!hubConnected || isEmergency || isHoming}
+            disabled={!hubConnected || isEmergency}
             variant="outline"
             className="h-14"
             size="lg"
@@ -313,7 +281,7 @@ export function MainControl() {
           <div />
           <Button
             onClick={() => sendCommand('RIGHT')}
-            disabled={!hubConnected || isEmergency || isHoming}
+            disabled={!hubConnected || isEmergency}
             variant="outline"
             className="h-14"
             size="lg"

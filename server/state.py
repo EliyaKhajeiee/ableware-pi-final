@@ -14,9 +14,7 @@ class AppState:
         self.simulation_state: SimulationState = SimulationState()
         self.history: Deque[HistoryEntry] = deque(maxlen=50)
         self.pi_connected: bool = False
-        self.position_steps: int = 0   # net UP presses from floor (0 = floor)
-        self.is_homed: bool = False    # whether HOME has been run
-        self.is_homing: bool = False   # HOME sequence in progress
+        self.position_steps: int = 0   # 0 = floor, 7 = ceiling
 
     def record_command(self, command: str, source: str, timestamp: float) -> None:
         self.last_command = command
