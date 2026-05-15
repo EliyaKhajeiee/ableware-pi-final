@@ -1,6 +1,6 @@
 # Ableware
 
-Voice-controlled assistive lift system. A Raspberry Pi listens for wake word + command, sends it over WebSocket to a hub running on your laptop, and the hub forwards it to the simulation and updates the dashboard in real time.
+Voice + UI + hardware controlled assistive lift system. A Raspberry Pi listens for wake word + command and sends it over WebSocket to a hub running on your laptop. The hub forwards commands to the Arduino (which drives two linear actuators), the simulation, and updates the dashboard in real time. The dashboard also has manual buttons for direct control without the Pi.
 
 ---
 
@@ -11,38 +11,81 @@ Pi (mic)
   → wake word (OpenWakeWord)
   → speech recognition (Vosk)
   → WebSocket → Hub :8000
-                  → Dashboard (browser)
+                  → Arduino (serial /dev/cu.usbmodem*)  ← drives both linear actuators
+                  → Dashboard (browser, port 5173)
                   → Simulation Stub :8001
 ```
 
-The hub is the only thing that talks to both the Pi and the simulation. The Pi and simulation never talk directly.
+The hub is the single point of control — Pi, dashboard, and voice all route through it. The Arduino is the real hardware backend; the simulation mirrors the state visually.
+
+---
+
+## Hardware (Arduino branch)
+
+### Wiring
+| Arduino Pin | Motor Driver |
+|---|---|
+| 7 | Actuator 1 IN1 |
+| 8 | Actuator 1 IN2 |
+| 9 | Actuator 2 IN3 |
+| 10 | Actuator 2 IN4 |
+| 11 | IR Receiver signal |
+
+Enable pins on the driver board are jumpered HIGH (always enabled). Motor power (12V) must be connected to the driver board separately from the Arduino USB.
+
+### Serial protocol
+The hub sends single-character commands at **115200 baud**, newline-terminated:
+
+| Char | Action |
+|---|---|
+| `U` | Both actuators extend (up) for 200ms |
+| `D` | Both actuators retract (down) for 200ms |
+| `S` | Stop |
+| `E` | Emergency stop |
+| `R` | Resume (clear e-stop) |
+
+The IR remote also works in parallel — codes `0x09` (up), `0x07` (down), `0x1C` (stop).
+
+### Flashing the sketch
+```bash
+arduino-cli compile --fqbn arduino:avr:uno arduino/actuator_driver
+arduino-cli upload -p /dev/cu.usbmodem1401 --fqbn arduino:avr:uno arduino/actuator_driver
+```
+
+Find your port with: `ls /dev/cu.usb*`
 
 ---
 
 ## What runs where
 
-| Component | Machine | How to start |
+| Component | Machine | Command |
 |---|---|---|
-| Hub + Dashboard | Laptop | `python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000` |
-| 3D Simulation   | Laptop | `python3 lift_actuator_sim/main.py serve` |
-| Voice client    | Pi     | `python3 voice/main.py` |
+| Simulation stub | Laptop | `cd lift_actuator_sim && python3 -m uvicorn simulation_stub:app --port 8001` |
+| Hub | Laptop | `python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000` |
+| Frontend | Laptop | `cd frontend && npm run dev` → open http://localhost:5173 |
+| Voice client | Pi | `python3 voice/main.py` |
 
-Start order: 3D simulation → hub → Pi client.
-
-The hub serves the built dashboard at `http://localhost:8000`. No separate frontend server needed.
+**Start order:** simulation → hub → frontend → Pi (Pi is optional).
 
 ---
 
 ## Setup
 
-### Laptop (hub + dashboard)
+### First time (laptop)
 
 ```bash
-cd ~/ableware-pi
-pip3 install fastapi "uvicorn[standard]" httpx pydantic pyyaml
+pip3 install fastapi "uvicorn[standard]" httpx pydantic pyyaml pyserial
+cd frontend && npm install
 ```
 
-Edit `config.yaml` and set `server.ip` to your laptop's LAN IP. The Pi needs to reach this address.
+### Arduino port
+Edit `config.yaml` and set `arduino.port` to your device:
+```yaml
+arduino:
+  enabled: true
+  port: "/dev/cu.usbmodem1401"   # check with: ls /dev/cu.usb*
+  baud: 115200
+```
 
 ### Raspberry Pi (voice client)
 
@@ -51,58 +94,34 @@ sudo apt install portaudio19-dev espeak-ng
 pip3 install -r voice/requirements.txt
 ```
 
-You need two models in `voice/models/`:
-- `vosk-model-small-en-us-0.15/` — download from https://alphacephei.com/vosk/models
-- `ableware_wakeword.onnx` — your custom wake word model
+Models needed in `voice/models/`:
+- `vosk-model-small-en-us-0.15/` — from https://alphacephei.com/vosk/models
+- `ableware_wakeword.onnx` — custom wake word model
 
-If the wake word model is missing the system falls back to always-listening mode.
-
-Edit `config.yaml`:
-```yaml
-server:
-  ip: "192.168.1.XX"   # your laptop's IP, not the Pi's
-  hub_port: 8000
-```
-
-Run:
-```bash
-python3 voice/main.py
-```
-
-Say "Ableware" to wake it, then say a command: **up, down, start, stop, left, right**.
+Say **"Ableware"** to wake, then say a command: **up, down, start, stop, left, right**.
 
 ---
 
-## Working on the simulation (no Pi needed)
+## Position control (floor / ceiling)
 
-If you're working on the simulation side and don't have a Pi, you don't need one. The dashboard has manual control buttons that send the same commands the Pi would send.
+The system tracks actuator position as a step counter:
 
-1. Start the 3D simulation (opens the PyBullet window and listens for hub commands):
-```bash
-python3 lift_actuator_sim/main.py serve
-```
+- **Floor** = 4 steps above physical bottom (hard limit — DOWN is blocked here)
+- **Ceiling** = fully extended (no software limit; physical end-stop handles it)
 
-2. Start the hub:
-```bash
-python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000
-```
+**HOME button** (purple, top of controls): automatically retracts the actuators to the physical bottom, then extends 4 steps to the floor position. Press this once on startup before using UP/DOWN.
 
-3. Open `http://localhost:8000` in a browser.
+The step badge in the UI shows current position: `Step 0 from floor` = at floor, `Step 3 from floor` = 3 UP presses above floor.
 
-Use the UP / DOWN / START / STOP buttons in the dashboard. Commands flow: dashboard → hub → 3D sim. The PyBullet window shows the sling moving in real time. The Pi badge will show disconnected — that's fine.
+---
 
-The 3D simulation exposes the same API as the stub:
-- `POST /command` — accepts `{"command": "UP"}` etc.
-- `GET /state` — returns current actuator + controller state
+## Dashboard connection badges
 
-The hub polls `/state` every 250ms and pushes updates to the dashboard over WebSocket.
-
-The sliders in the PyBullet window still control user weight, max force, and sim speed — they just no longer control the lift target (the hub does that).
-
-If you want to run without the PyBullet window (e.g. on a headless server), you can still use the old stub:
-```bash
-cd lift_actuator_sim && python3 -m uvicorn simulation_stub:app --port 8001
-```
+| Badge | Color | Meaning |
+|---|---|---|
+| Hub | Green | WebSocket to server connected |
+| Pi | Green | Raspberry Pi voice client connected |
+| Arduino | Blue | Serial connection to Arduino established |
 
 ---
 
@@ -110,21 +129,27 @@ cd lift_actuator_sim && python3 -m uvicorn simulation_stub:app --port 8001
 
 | Key | What it does |
 |---|---|
-| `server.ip` | LAN IP of the laptop running the hub. Pi uses this to connect. |
+| `server.ip` | LAN IP of the laptop running the hub |
 | `server.hub_port` | Hub WebSocket port (default 8000) |
 | `server.sim_port` | Simulation stub port (default 8001) |
-| `voice.wake_word_threshold` | How confident the model needs to be before triggering (0–1) |
-| `voice.listen_timeout_s` | Seconds to wait for a command after wake word before giving up |
-| `actuator.step_size` | How far UP/DOWN moves the actuator per command (metres) |
+| `arduino.enabled` | Set false to run without hardware |
+| `arduino.port` | Serial port for Arduino |
+| `arduino.baud` | Baud rate (default 115200) |
+| `actuator.step_size` | Simulation step size per UP/DOWN (metres) |
+| `voice.wake_word_threshold` | Wake word confidence threshold (0–1) |
 
 ---
 
 ## Troubleshooting
 
-**Pi badge gray in dashboard** — Pi can't reach the hub. Check `server.ip` in `config.yaml` matches your laptop's IP. Both devices need to be on the same network.
+**Arduino badge gray** — Check `arduino.port` in config.yaml matches `ls /dev/cu.usb*`. Arduino must be plugged in before starting the hub.
 
-**Hub badge gray in dashboard** — Hub isn't running, or you're accessing the dashboard from a non-localhost address on port 5173 (Vite dev server). Use `http://localhost:8000` instead.
+**Actuators don't move** — Motor driver needs its own 12V power supply separate from Arduino USB. Check that the power LED on the driver board is lit.
 
-**"Command queued (not connected)"** on Pi — Pi recognised the command but couldn't send it. Hub isn't reachable. You'll hear an error beep.
+**Pi badge gray** — Pi can't reach the hub. Check `server.ip` in config.yaml matches your laptop's LAN IP. Both must be on the same network.
 
-**No wake word detection** — If `models/ableware_wakeword.onnx` is missing, the system runs in bypass mode (always listening). Check the Pi logs on startup.
+**Hub badge gray** — Hub isn't running, or browser is on a different port. Use http://localhost:5173.
+
+**DOWN button grayed out** — System is at the floor position (step 0). Press HOME first if position tracking is off, or press UP to go higher.
+
+**"Unsupported upgrade request" in server logs** — Run `pip3 install "uvicorn[standard]"` to add WebSocket support.

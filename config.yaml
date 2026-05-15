@@ -25,7 +25,7 @@ simulation:
 
 arduino:
   enabled: true
-  port: "/dev/cu.usbmodem14101"  # Mac — check 'ls /dev/cu.usb*' after plugging in
+  port: "/dev/cu.usbmodem1401"   # Mac — recheck with 'ls /dev/cu.usb*' if it changes
   baud: 115200
 
 feedback:

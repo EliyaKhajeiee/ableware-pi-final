@@ -45,6 +45,9 @@ interface StateUpdate {
   command_history: HistoryEntry[];
   pi_connected: boolean;
   arduino_connected: boolean;
+  position_steps: number;
+  is_homed: boolean;
+  is_homing: boolean;
 }
 
 // ---- Constants -----------------------------------------------------
@@ -62,6 +65,9 @@ export function MainControl() {
   const [piConnected, setPiConnected] = useState(false);
   const [arduinoConnected, setArduinoConnected] = useState(false);
   const [simState, setSimState] = useState<SimulationState | null>(null);
+  const [positionSteps, setPositionSteps] = useState(0);
+  const [isHomed, setIsHomed] = useState(false);
+  const [isHoming, setIsHoming] = useState(false);
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const [lastSource, setLastSource] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -92,6 +98,9 @@ export function MainControl() {
           setLastCommand(data.last_command);
           setLastSource(data.last_command_source);
           setHistory(data.command_history.slice(0, 10));
+          setPositionSteps(data.position_steps);
+          setIsHomed(data.is_homed);
+          setIsHoming(data.is_homing);
         }
       } catch {
         // ignore malformed messages
@@ -232,8 +241,31 @@ export function MainControl() {
 
       {/* Manual controls */}
       <Card className="p-6">
-        <h2 className="text-2xl font-semibold mb-4">Manual Controls</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-semibold">Manual Controls</h2>
+          <div className="flex items-center gap-2">
+            {isHoming && (
+              <Badge className="bg-yellow-500 text-white px-3 py-1 animate-pulse">Homing…</Badge>
+            )}
+            {isHomed && !isHoming && (
+              <Badge className="bg-green-100 text-green-800 px-3 py-1">
+                Step {positionSteps} from floor
+              </Badge>
+            )}
+            {!isHomed && !isHoming && (
+              <Badge className="bg-gray-200 text-gray-600 px-3 py-1">Not homed</Badge>
+            )}
+          </div>
+        </div>
         <div className="grid grid-cols-3 gap-3">
+          <Button
+            onClick={() => sendCommand('HOME')}
+            disabled={!hubConnected || !arduinoConnected || isHoming}
+            className="h-14 bg-purple-600 hover:bg-purple-700 col-span-3 text-white"
+            size="lg"
+          >
+            ⌂ HOME  <span className="text-sm font-normal ml-2 opacity-80">(retracts fully → rises to floor)</span>
+          </Button>
           <Button
             onClick={() => sendCommand('START')}
             disabled={!hubConnected}
@@ -244,7 +276,7 @@ export function MainControl() {
           </Button>
           <Button
             onClick={() => sendCommand('UP')}
-            disabled={!hubConnected || isEmergency}
+            disabled={!hubConnected || isEmergency || isHoming}
             variant="outline"
             className="h-14 col-span-1"
             size="lg"
@@ -254,7 +286,7 @@ export function MainControl() {
           <div />
           <Button
             onClick={() => sendCommand('DOWN')}
-            disabled={!hubConnected || isEmergency}
+            disabled={!hubConnected || isEmergency || isHoming || (isHomed && positionSteps <= 0)}
             variant="outline"
             className="h-14 col-span-1"
             size="lg"
@@ -263,7 +295,7 @@ export function MainControl() {
           </Button>
           <Button
             onClick={() => sendCommand('LEFT')}
-            disabled={!hubConnected || isEmergency}
+            disabled={!hubConnected || isEmergency || isHoming}
             variant="outline"
             className="h-14"
             size="lg"
@@ -273,7 +305,7 @@ export function MainControl() {
           <div />
           <Button
             onClick={() => sendCommand('RIGHT')}
-            disabled={!hubConnected || isEmergency}
+            disabled={!hubConnected || isEmergency || isHoming}
             variant="outline"
             className="h-14"
             size="lg"
