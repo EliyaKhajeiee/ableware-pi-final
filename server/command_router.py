@@ -25,6 +25,8 @@ _RETRACT_PULSES = 25
 _HOME_STEPS = 4
 _PULSE_GAP = 0.35  # seconds between each pulse (> Arduino PULSE_MS of 200ms)
 
+_MAX_STEPS = 7  # ceiling — UP blocked above this
+
 
 async def route_command(msg: CommandMessage) -> None:
     """Validate command → enforce limits → forward to Arduino + sim → broadcast."""
@@ -40,9 +42,14 @@ async def route_command(msg: CommandMessage) -> None:
         logger.info("Homing in progress — ignoring %s", cmd)
         return
 
-    # Floor enforcement: block DOWN at position 0 when homed
+    # Floor enforcement: block DOWN at step 0 when homed
     if cmd == "DOWN" and app_state.is_homed and app_state.position_steps <= 0:
         logger.info("At floor — blocking DOWN")
+        return
+
+    # Ceiling enforcement: block UP at max steps when homed
+    if cmd == "UP" and app_state.is_homed and app_state.position_steps >= _MAX_STEPS:
+        logger.info("At ceiling (%d) — blocking UP", _MAX_STEPS)
         return
 
     app_state.record_command(cmd, msg.source, msg.timestamp or time.time())

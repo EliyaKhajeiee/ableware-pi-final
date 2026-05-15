@@ -276,7 +276,7 @@ export function MainControl() {
           </Button>
           <Button
             onClick={() => sendCommand('UP')}
-            disabled={!hubConnected || isEmergency || isHoming}
+            disabled={!hubConnected || isEmergency || isHoming || (isHomed && positionSteps >= 7)}
             variant="outline"
             className="h-14 col-span-1"
             size="lg"
