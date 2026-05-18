@@ -1,0 +1,440 @@
+{
+  "robot": "lay_figure",
+  "root_bone": "waist",
+  "root_link": "waist_link",
+  "base_color_texture": "../textures/lay_figure_BaseColor_2K.png",
+  "part_count": 17,
+  "parts": [
+    {
+      "bone": "body",
+      "part": "body",
+      "link": "body_link",
+      "parent_bone": "waist",
+      "mesh": "meshes/body.obj",
+      "joint_world_location": [
+        0.0,
+        0.0,
+        1.2197986841201782
+      ],
+      "face_count": 2176,
+      "vertex_count": 2180,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "lower": -0.5,
+        "upper": 0.5,
+        "effort": 30.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "head",
+      "part": "head",
+      "link": "head_link",
+      "parent_bone": "body",
+      "mesh": "meshes/head.obj",
+      "joint_world_location": [
+        0.0,
+        0.0,
+        1.6440973281860352
+      ],
+      "face_count": 2176,
+      "vertex_count": 2180,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "lower": -0.9,
+        "upper": 0.9,
+        "effort": 10.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "l_ankle",
+      "part": "l_ankle",
+      "link": "l_ankle_link",
+      "parent_bone": "l_shin",
+      "mesh": "meshes/l_ankle.obj",
+      "joint_world_location": [
+        0.15034079551696777,
+        1.3264784115563089e-07,
+        0.08993285894393921
+      ],
+      "face_count": 384,
+      "vertex_count": 386,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "lower": -0.8,
+        "upper": 0.8,
+        "effort": 10.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "l_foot",
+      "part": "l_foot",
+      "link": "l_foot_link",
+      "parent_bone": "l_ankle",
+      "mesh": "meshes/l_foot.obj",
+      "joint_world_location": [
+        0.15258070826530457,
+        1.3277318089421897e-07,
+        0.028155982494354248
+      ],
+      "face_count": 2912,
+      "vertex_count": 2914,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "lower": -0.5,
+        "upper": 0.5,
+        "effort": 8.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "l_forearm",
+      "part": "l_forearm",
+      "link": "l_forearm_link",
+      "parent_bone": "l_shoulder",
+      "mesh": "meshes/l_forearm.obj",
+      "joint_world_location": [
+        0.525212287902832,
+        0.0,
+        1.486849308013916
+      ],
+      "face_count": 800,
+      "vertex_count": 804,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "lower": 0.0,
+        "upper": 2.4,
+        "effort": 18.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "l_hand",
+      "part": "l_hand",
+      "link": "l_hand_link",
+      "parent_bone": "l_forearm",
+      "mesh": "meshes/l_hand.obj",
+      "joint_world_location": [
+        0.8225439190864563,
+        0.0,
+        1.486849308013916
+      ],
+      "face_count": 1280,
+      "vertex_count": 1284,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "lower": -0.9,
+        "upper": 0.9,
+        "effort": 8.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "l_shin",
+      "part": "l_shin",
+      "link": "l_shin_link",
+      "parent_bone": "l_thigh",
+      "mesh": "meshes/l_shin.obj",
+      "joint_world_location": [
+        0.12392579019069672,
+        9.834123915197779e-08,
+        0.5064196586608887
+      ],
+      "face_count": 672,
+      "vertex_count": 676,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "lower": 0.0,
+        "upper": 2.3,
+        "effort": 20.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "l_shoulder",
+      "part": "l_shoulder",
+      "link": "l_shoulder_link",
+      "parent_bone": "body",
+      "mesh": "meshes/l_shoulder.obj",
+      "joint_world_location": [
+        0.15750715136528015,
+        0.0,
+        1.4868494272232056
+      ],
+      "face_count": 864,
+      "vertex_count": 868,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "lower": -2.0,
+        "upper": 2.0,
+        "effort": 20.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "l_thigh",
+      "part": "l_thigh",
+      "link": "l_thigh_link",
+      "parent_bone": "waist",
+      "mesh": "meshes/l_thigh.obj",
+      "joint_world_location": [
+        0.06950535625219345,
+        4.062982839059259e-08,
+        0.9135825634002686
+      ],
+      "face_count": 704,
+      "vertex_count": 708,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "lower": -1.8,
+        "upper": 0.8,
+        "effort": 25.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "r_ankle",
+      "part": "r_ankle",
+      "link": "r_ankle_link",
+      "parent_bone": "r_shin",
+      "mesh": "meshes/r_ankle.obj",
+      "joint_world_location": [
+        -0.15034079551696777,
+        1.3264784115563089e-07,
+        0.08993285894393921
+      ],
+      "face_count": 384,
+      "vertex_count": 386,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "lower": -0.8,
+        "upper": 0.8,
+        "effort": 10.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "r_foot",
+      "part": "r_foot",
+      "link": "r_foot_link",
+      "parent_bone": "r_ankle",
+      "mesh": "meshes/r_foot.obj",
+      "joint_world_location": [
+        -0.15258070826530457,
+        1.3277318089421897e-07,
+        0.027807414531707764
+      ],
+      "face_count": 2912,
+      "vertex_count": 2914,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "lower": -0.5,
+        "upper": 0.5,
+        "effort": 8.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "r_forearm",
+      "part": "r_forearm",
+      "link": "r_forearm_link",
+      "parent_bone": "r_shoulder",
+      "mesh": "meshes/r_forearm.obj",
+      "joint_world_location": [
+        -0.5250325202941895,
+        -1.09617381838234e-09,
+        1.486849308013916
+      ],
+      "face_count": 800,
+      "vertex_count": 804,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "lower": 0.0,
+        "upper": 2.4,
+        "effort": 18.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "r_hand",
+      "part": "r_hand",
+      "link": "r_hand_link",
+      "parent_bone": "r_forearm",
+      "mesh": "meshes/r_hand.obj",
+      "joint_world_location": [
+        -0.82248455286026,
+        2.5068974451869508e-08,
+        1.486849308013916
+      ],
+      "face_count": 1280,
+      "vertex_count": 1284,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "lower": -0.9,
+        "upper": 0.9,
+        "effort": 8.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "r_shin",
+      "part": "r_shin",
+      "link": "r_shin_link",
+      "parent_bone": "r_thigh",
+      "mesh": "meshes/r_shin.obj",
+      "joint_world_location": [
+        -0.12274911999702454,
+        9.836833925191968e-08,
+        0.5062179565429688
+      ],
+      "face_count": 672,
+      "vertex_count": 676,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "lower": 0.0,
+        "upper": 2.3,
+        "effort": 20.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "r_shoulder",
+      "part": "r_shoulder",
+      "link": "r_shoulder_link",
+      "parent_bone": "body",
+      "mesh": "meshes/r_shoulder.obj",
+      "joint_world_location": [
+        -0.15963467955589294,
+        -3.072192100717075e-08,
+        1.4868494272232056
+      ],
+      "face_count": 864,
+      "vertex_count": 868,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "lower": -2.0,
+        "upper": 2.0,
+        "effort": 20.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "r_thigh",
+      "part": "r_thigh",
+      "link": "r_thigh_link",
+      "parent_bone": "waist",
+      "mesh": "meshes/r_thigh.obj",
+      "joint_world_location": [
+        -0.06994105875492096,
+        4.056478530856111e-08,
+        0.9140666723251343
+      ],
+      "face_count": 704,
+      "vertex_count": 708,
+      "joint_spec": {
+        "type": "revolute",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "lower": -1.8,
+        "upper": 0.8,
+        "effort": 25.0,
+        "velocity": 2.0
+      }
+    },
+    {
+      "bone": "waist",
+      "part": "waist",
+      "link": "waist_link",
+      "parent_bone": null,
+      "mesh": "meshes/waist.obj",
+      "joint_world_location": [
+        0.0,
+        0.0,
+        0.9726347327232361
+      ],
+      "face_count": 1536,
+      "vertex_count": 1538,
+      "joint_spec": null
+    }
+  ]
+}

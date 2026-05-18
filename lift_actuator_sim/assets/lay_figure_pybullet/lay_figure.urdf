@@ -1,0 +1,505 @@
+<?xml version="1.0" ?>
+<robot name="lay_figure">
+  <link name="body_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/body.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/body.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="head_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/head.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/head.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="l_ankle_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_ankle.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_ankle.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="l_foot_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_foot.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_foot.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="l_forearm_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_forearm.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_forearm.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="l_hand_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_hand.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_hand.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="l_shin_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_shin.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_shin.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="l_shoulder_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_shoulder.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_shoulder.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="l_thigh_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_thigh.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/l_thigh.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="r_ankle_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_ankle.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_ankle.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="r_foot_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_foot.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_foot.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="r_forearm_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_forearm.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_forearm.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="r_hand_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_hand.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_hand.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="r_shin_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_shin.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_shin.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="r_shoulder_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_shoulder.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_shoulder.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="r_thigh_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_thigh.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/r_thigh.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="waist_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.005" ixy="0" ixz="0" iyy="0.005" iyz="0" izz="0.005"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/waist.obj" scale="1 1 1"/>
+      </geometry>
+      <material name="texture_white_tint">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/waist.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="body_joint" type="revolute">
+    <parent link="waist_link"/>
+    <child link="body_link"/>
+    <origin xyz="0 0 0.247163951" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.5" upper="0.5" effort="30" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="head_joint" type="revolute">
+    <parent link="body_link"/>
+    <child link="head_link"/>
+    <origin xyz="0 0 0.424298644" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.9" upper="0.9" effort="10" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="l_ankle_joint" type="revolute">
+    <parent link="l_shin_link"/>
+    <child link="l_ankle_link"/>
+    <origin xyz="0.0264150053 3.4306602e-08 -0.4164868" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.8" upper="0.8" effort="10" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="l_foot_joint" type="revolute">
+    <parent link="l_ankle_link"/>
+    <child link="l_foot_link"/>
+    <origin xyz="0.00223991275 1.25339739e-10 -0.0617768764" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.5" upper="0.5" effort="8" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="l_forearm_joint" type="revolute">
+    <parent link="l_shoulder_link"/>
+    <child link="l_forearm_link"/>
+    <origin xyz="0.367705137 0 -1.1920929e-07" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.4" effort="18" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="l_hand_joint" type="revolute">
+    <parent link="l_forearm_link"/>
+    <child link="l_hand_link"/>
+    <origin xyz="0.297331631 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.9" upper="0.9" effort="8" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="l_shin_joint" type="revolute">
+    <parent link="l_thigh_link"/>
+    <child link="l_shin_link"/>
+    <origin xyz="0.0544204339 5.77114108e-08 -0.407162905" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="2.3" effort="20" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="l_shoulder_joint" type="revolute">
+    <parent link="body_link"/>
+    <child link="l_shoulder_link"/>
+    <origin xyz="0.157507151 0 0.267050743" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2" upper="2" effort="20" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="l_thigh_joint" type="revolute">
+    <parent link="waist_link"/>
+    <child link="l_thigh_link"/>
+    <origin xyz="0.0695053563 4.06298284e-08 -0.0590521693" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-1.8" upper="0.8" effort="25" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="r_ankle_joint" type="revolute">
+    <parent link="r_shin_link"/>
+    <child link="r_ankle_link"/>
+    <origin xyz="-0.0275916755 3.42795019e-08 -0.416285098" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.8" upper="0.8" effort="10" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="r_foot_joint" type="revolute">
+    <parent link="r_ankle_link"/>
+    <child link="r_foot_link"/>
+    <origin xyz="-0.00223991275 1.25339739e-10 -0.0621254444" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.5" upper="0.5" effort="8" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="r_forearm_joint" type="revolute">
+    <parent link="r_shoulder_link"/>
+    <child link="r_forearm_link"/>
+    <origin xyz="-0.365397841 2.96257472e-08 -1.1920929e-07" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.4" effort="18" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="r_hand_joint" type="revolute">
+    <parent link="r_forearm_link"/>
+    <child link="r_hand_link"/>
+    <origin xyz="-0.297452033 2.61651483e-08 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.9" upper="0.9" effort="8" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="r_shin_joint" type="revolute">
+    <parent link="r_thigh_link"/>
+    <child link="r_shin_link"/>
+    <origin xyz="-0.0528080612 5.78035539e-08 -0.407848716" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="2.3" effort="20" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="r_shoulder_joint" type="revolute">
+    <parent link="body_link"/>
+    <child link="r_shoulder_link"/>
+    <origin xyz="-0.15963468 -3.0721921e-08 0.267050743" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2" upper="2" effort="20" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <joint name="r_thigh_joint" type="revolute">
+    <parent link="waist_link"/>
+    <child link="r_thigh_link"/>
+    <origin xyz="-0.0699410588 4.05647853e-08 -0.0585680604" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-1.8" upper="0.8" effort="25" velocity="2"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+</robot>

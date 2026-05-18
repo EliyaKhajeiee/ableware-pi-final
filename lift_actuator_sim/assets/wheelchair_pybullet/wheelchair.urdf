@@ -1,0 +1,126 @@
+<?xml version="1.0" ?>
+<robot name="wheelchair">
+  <link name="chair_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="20"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/chair.obj" scale="1 1 1"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/chair.obj" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="large_wheel_l_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/large_wheel_l.obj" scale="1 1 1"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="1.12304711" length="0.705194771"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="large_wheel_l_joint" type="continuous">
+    <parent link="chair_link"/>
+    <child link="large_wheel_l_link"/>
+    <origin xyz="1.21015871 1.02499151 0.0332109928" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <link name="large_wheel_r_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/large_wheel_r.obj" scale="1 1 1"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="1.12304711" length="0.705194771"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="large_wheel_r_joint" type="continuous">
+    <parent link="chair_link"/>
+    <child link="large_wheel_r_link"/>
+    <origin xyz="-1.26152074 1.02499151 0.0332109928" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <link name="wheel_l_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/wheel_l.obj" scale="1 1 1"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.404823899" length="0.161043406"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="wheel_l_joint" type="continuous">
+    <parent link="chair_link"/>
+    <child link="wheel_l_link"/>
+    <origin xyz="1.00668621 -0.623962998 -0.674005747" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+  <link name="wheel_r_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/wheel_r.obj" scale="1 1 1"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.404823899" length="0.161043406"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="wheel_r_joint" type="continuous">
+    <parent link="chair_link"/>
+    <child link="wheel_r_link"/>
+    <origin xyz="-1.06136417 -0.623962998 -0.681527019" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+</robot>

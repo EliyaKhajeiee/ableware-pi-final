@@ -61,20 +61,29 @@ def _vbox(half, pos, orn=None, color=None):
     orn = orn or _q()
     vis = (p.createVisualShape(p.GEOM_BOX, halfExtents=half, rgbaColor=color)
            if color else -1)
-    return p.createMultiBody(0.001, -1, vis, pos, orn)
+    return p.createMultiBody(0.0, -1, vis, pos, orn)
 
 
 def _vcyl(r, h, pos, orn=None, color=None):
     orn = orn or _q()
     vis = (p.createVisualShape(p.GEOM_CYLINDER, radius=r, length=h, rgbaColor=color)
            if color else -1)
-    return p.createMultiBody(0.001, -1, vis, pos, orn)
+    return p.createMultiBody(0.0, -1, vis, pos, orn)
 
 
 def _vsph(r, pos, color=None):
     vis = (p.createVisualShape(p.GEOM_SPHERE, radius=r, rgbaColor=color)
            if color else -1)
-    return p.createMultiBody(0.001, -1, vis, pos)
+    return p.createMultiBody(0.0, -1, vis, pos)
+
+
+def _kbox(half, pos, orn=None, color=None):
+    """Massless box with collision, used for kinematic lift-contact surfaces."""
+    orn = orn or _q()
+    col = p.createCollisionShape(p.GEOM_BOX, halfExtents=half)
+    vis = (p.createVisualShape(p.GEOM_BOX, halfExtents=half, rgbaColor=color)
+           if color else -1)
+    return p.createMultiBody(0.0, col, vis, pos, orn)
 
 
 def _tube(x0, y0, z0, x1, y1, z1, r=None, color=None):
@@ -110,6 +119,40 @@ def _recolor(body_id, rgba):
 
 
 WHEEL_ORN = _q(math.pi / 2, 0, 0)   # lay cylinder on its side
+
+ASSET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+WHEELCHAIR_URDF = os.path.join(ASSET_DIR, "wheelchair_pybullet", "wheelchair.urdf")
+LAY_FIGURE_URDF = os.path.join(ASSET_DIR, "lay_figure_pybullet", "lay_figure.urdf")
+LAY_FIGURE_BASE_COLOR = os.path.join(
+    ASSET_DIR, "lay_figure_pybullet", "textures", "lay_figure_BaseColor_2K.png")
+
+WHEELCHAIR_MODEL_POS = [0.03, -0.02, 0.25]
+WHEELCHAIR_MODEL_ORN = _q(0.0, 0.0, math.pi / 2.0)
+WHEELCHAIR_MODEL_SCALE = 0.25
+
+LAY_FIGURE_DROP_POS = [0.03, -0.02, 1.42]
+LAY_FIGURE_ORN = _q(0.0, 0.0, math.pi / 2.0)
+LAY_FIGURE_SCALE = 0.85
+ENABLE_LAY_FIGURE_RAGDOLL = True
+
+LAY_FIGURE_SITTING_POSE = {
+    "body_joint": -0.08,
+    "head_joint": 0.0,
+    "l_shoulder_joint": -0.55,
+    "r_shoulder_joint": 0.55,
+    "l_forearm_joint": 0.85,
+    "r_forearm_joint": 0.85,
+    "l_hand_joint": 0.0,
+    "r_hand_joint": 0.0,
+    "l_thigh_joint": -1.32,
+    "r_thigh_joint": -1.32,
+    "l_shin_joint": 1.25,
+    "r_shin_joint": 1.25,
+    "l_ankle_joint": -0.2,
+    "r_ankle_joint": -0.2,
+    "l_foot_joint": 0.0,
+    "r_foot_joint": 0.0,
+}
 
 
 # ── Network API (used when running with --serve) ───────────────────────────
@@ -182,7 +225,9 @@ class WheelchairLiftSim3D:
         self._headless = headless
         self._connect()
 
-        p.setGravity(0, 0, 0)   # physics modules own gravity
+        # PyBullet gravity is needed for the seated ragdoll figure. The lift
+        # actuator dynamics are still computed by the custom controller below.
+        p.setGravity(0, 0, -9.81)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
 
         if not self._headless:
@@ -204,6 +249,7 @@ class WheelchairLiftSim3D:
         self._build_wheelchair()
         self._build_sling()
         self._build_actuators()
+        self._build_lay_figure()
 
         if not self._headless:
             self._create_sliders()
@@ -261,6 +307,107 @@ class WheelchairLiftSim3D:
         self.act_L.emergency_stop()
         self.act_R.emergency_stop()
 
+    # ── Imported wheelchair / seated figure assets ───────────────────────
+
+    def _load_imported_wheelchair(self) -> bool:
+        """Load the Blender-derived wheelchair URDF if the asset is present."""
+        if not os.path.exists(WHEELCHAIR_URDF):
+            print(f"[WARN] Imported wheelchair URDF not found: {WHEELCHAIR_URDF}")
+            return False
+
+        self.wheelchair_model_id = p.loadURDF(
+            WHEELCHAIR_URDF,
+            WHEELCHAIR_MODEL_POS,
+            WHEELCHAIR_MODEL_ORN,
+            useFixedBase=True,
+            flags=p.URDF_USE_MATERIAL_COLORS_FROM_MTL,
+            globalScaling=WHEELCHAIR_MODEL_SCALE,
+        )
+        return True
+
+    def _apply_lay_figure_texture(self):
+        """Force PyBullet to use the packed base-color texture for the figure."""
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        if not os.path.exists(LAY_FIGURE_BASE_COLOR):
+            return
+
+        tex_id = p.loadTexture(LAY_FIGURE_BASE_COLOR)
+        for visual_shape in p.getVisualShapeData(self.lay_figure_id):
+            link_index = visual_shape[1]
+            p.changeVisualShape(
+                self.lay_figure_id,
+                link_index,
+                rgbaColor=[1, 1, 1, 1],
+                textureUniqueId=tex_id,
+            )
+
+    def _lay_figure_joint_indices(self):
+        return {
+            p.getJointInfo(self.lay_figure_id, i)[1].decode(): i
+            for i in range(p.getNumJoints(self.lay_figure_id))
+        }
+
+    def _reset_lay_figure_pose(self):
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        indices = self._lay_figure_joint_indices()
+        for joint_name, target in LAY_FIGURE_SITTING_POSE.items():
+            joint_index = indices.get(joint_name)
+            if joint_index is not None:
+                p.resetJointState(self.lay_figure_id, joint_index, target)
+
+    def _disable_lay_figure_motors(self):
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        for joint_index in range(p.getNumJoints(self.lay_figure_id)):
+            p.setJointMotorControl2(
+                self.lay_figure_id,
+                joint_index,
+                p.VELOCITY_CONTROL,
+                targetVelocity=0,
+                force=0,
+            )
+
+    def _set_lay_figure_dynamics(self):
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        p.changeDynamics(self.lay_figure_id, -1, linearDamping=0.04, angularDamping=0.08)
+        for link_index in range(p.getNumJoints(self.lay_figure_id)):
+            p.changeDynamics(
+                self.lay_figure_id,
+                link_index,
+                lateralFriction=0.8,
+                spinningFriction=0.03,
+                rollingFriction=0.02,
+                linearDamping=0.04,
+                angularDamping=0.08,
+                jointDamping=0.03,
+            )
+
+    def _build_lay_figure(self):
+        """Drop the controllable lay figure onto the imported wheelchair."""
+        self.lay_figure_id = None
+        if not ENABLE_LAY_FIGURE_RAGDOLL:
+            return
+        if not os.path.exists(LAY_FIGURE_URDF):
+            print(f"[WARN] Lay figure URDF not found: {LAY_FIGURE_URDF}")
+            return
+
+        flags = p.URDF_USE_MATERIAL_COLORS_FROM_MTL | p.URDF_USE_SELF_COLLISION_EXCLUDE_PARENT
+        self.lay_figure_id = p.loadURDF(
+            LAY_FIGURE_URDF,
+            LAY_FIGURE_DROP_POS,
+            LAY_FIGURE_ORN,
+            useFixedBase=False,
+            flags=flags,
+            globalScaling=LAY_FIGURE_SCALE,
+        )
+        self._apply_lay_figure_texture()
+        self._set_lay_figure_dynamics()
+        self._reset_lay_figure_pose()
+        self._disable_lay_figure_motors()
+
     # ── Floor ─────────────────────────────────────────────────────────────
 
     def _build_floor(self):
@@ -278,6 +425,9 @@ class WheelchairLiftSim3D:
     # ── Wheelchair frame ──────────────────────────────────────────────────
 
     def _build_wheelchair(self):
+        if self._load_imported_wheelchair():
+            return
+
         sz  = SEAT_H
         bx  = -SEAT_D / 2        # rear edge X
         fx  =  SEAT_D / 2        # front edge X
@@ -535,16 +685,18 @@ class WheelchairLiftSim3D:
 
         # ── 3 transverse nylon straps ──────────────────────────────────
         for sx in (TIE_X_F, 0.0, TIE_X_R):
-            bid = _vbox([SLING_STRAP_W / 2, SLING_W / 2, SLING_T / 2 + 0.005],
+            bid = _kbox([SLING_STRAP_W / 2, SLING_W / 2, SLING_T / 2 + 0.005],
                         [sx, 0, z0], color=C_SLING_DN)
+            p.changeDynamics(bid, -1, lateralFriction=1.0, restitution=0.0)
             self._sling_parts.append((bid, sx, 0.0))
 
         # ── 2 longitudinal side rails (span front-strap to rear-strap) ─
         rail_hw = (TIE_X_F - TIE_X_R) / 2.0   # half-length of rail
         for sy in (SLING_W / 2 - SLING_RAIL_W / 2,
                    -(SLING_W / 2 - SLING_RAIL_W / 2)):
-            bid = _vbox([rail_hw, SLING_RAIL_W / 2, SLING_T / 2 + 0.003],
+            bid = _kbox([rail_hw, SLING_RAIL_W / 2, SLING_T / 2 + 0.003],
                         [0.0, sy, z0], color=C_SLING_EDG)
+            p.changeDynamics(bid, -1, lateralFriction=1.0, restitution=0.0)
             self._sling_parts.append((bid, 0.0, sy))
 
         # back-compat: sling_id points to first strap
@@ -879,6 +1031,7 @@ class WheelchairLiftSim3D:
                             self.act_R.set_pwm(pwm)
                             self.act_L.step(BASE_DT, req_force)
                             self.act_R.step(BASE_DT, req_force)
+                            self._disable_lay_figure_motors()
                             p.stepSimulation()
 
                             self._duty_total += 1
@@ -1046,6 +1199,7 @@ class WheelchairLiftSim3D:
                             self.act_R.set_pwm(pwm)
                             self.act_L.step(BASE_DT, req)
                             self.act_R.step(BASE_DT, req)
+                            self._disable_lay_figure_motors()
                             p.stepSimulation()
 
                         ext      = (self.act_L.position + self.act_R.position) / 2.0

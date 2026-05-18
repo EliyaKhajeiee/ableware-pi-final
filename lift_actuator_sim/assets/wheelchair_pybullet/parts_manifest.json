@@ -1,0 +1,272 @@
+{
+  "robot": "wheelchair",
+  "base_link": "chair_link",
+  "parts": [
+    {
+      "collection": "chair",
+      "part": "chair",
+      "link": "chair_link",
+      "mesh": "meshes/chair.obj",
+      "objects": [
+        "Cube.019",
+        "Cube.020",
+        "Cube.021",
+        "Cube.022",
+        "Cube.023",
+        "Cube.024",
+        "Cylinder.015",
+        "Cylinder.016",
+        "Cylinder.017",
+        "Cylinder.018",
+        "Cylinder.019",
+        "Cylinder.122",
+        "Cylinder.124",
+        "Cylinder.125",
+        "Cylinder.126",
+        "Cylinder.127",
+        "Cylinder.130",
+        "Cylinder.131",
+        "Cylinder.132",
+        "Cylinder.133",
+        "Cylinder.134",
+        "Cylinder.135",
+        "Plane.004",
+        "Plane.005",
+        "Plane.010",
+        "Plane.011",
+        "Plane.012",
+        "Plane.013",
+        "Plane.014"
+      ],
+      "object_count": 29,
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "axis": null,
+      "role": "base",
+      "collision": {
+        "type": "mesh"
+      }
+    },
+    {
+      "collection": "Large_wheel_L",
+      "part": "large_wheel_l",
+      "link": "large_wheel_l_link",
+      "mesh": "meshes/large_wheel_l.obj",
+      "objects": [
+        "Circle.002",
+        "Circle.003",
+        "Circle.008",
+        "Circle.009",
+        "Cylinder.071",
+        "Cylinder.072",
+        "Cylinder.073",
+        "Cylinder.074",
+        "Cylinder.075",
+        "Cylinder.076",
+        "Cylinder.077",
+        "Cylinder.078",
+        "Cylinder.079",
+        "Cylinder.080",
+        "Cylinder.081",
+        "Cylinder.082",
+        "Cylinder.083",
+        "Cylinder.084",
+        "Cylinder.085",
+        "Cylinder.086",
+        "Cylinder.087",
+        "Cylinder.088",
+        "Cylinder.089",
+        "Cylinder.090",
+        "Cylinder.091",
+        "Cylinder.092",
+        "Cylinder.093",
+        "Cylinder.094",
+        "Cylinder.095",
+        "Cylinder.096",
+        "Cylinder.097",
+        "Cylinder.098",
+        "Cylinder.099",
+        "Cylinder.100",
+        "Cylinder.101",
+        "Cylinder.102",
+        "Cylinder.103",
+        "Cylinder.104",
+        "Cylinder.105",
+        "Cylinder.106",
+        "Cylinder.107",
+        "Cylinder.108",
+        "Cylinder.109",
+        "Cylinder.110",
+        "Cylinder.111",
+        "Cylinder.112",
+        "Cylinder.113",
+        "Cylinder.114",
+        "Cylinder.115",
+        "Cylinder.116",
+        "Cylinder.117",
+        "Cylinder.118",
+        "Cylinder.119",
+        "Cylinder.120",
+        "Cylinder.121"
+      ],
+      "object_count": 55,
+      "origin": [
+        1.2101587057113647,
+        1.024991512298584,
+        0.03321099281311035
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "role": "wheel",
+      "collision": {
+        "type": "cylinder",
+        "radius": 1.123047113418579,
+        "length": 0.7051947712898254
+      }
+    },
+    {
+      "collection": "Large_wheel_R",
+      "part": "large_wheel_r",
+      "link": "large_wheel_r_link",
+      "mesh": "meshes/large_wheel_r.obj",
+      "objects": [
+        "Circle",
+        "Circle.001",
+        "Circle.010",
+        "Circle.011",
+        "Cylinder.014",
+        "Cylinder.020",
+        "Cylinder.021",
+        "Cylinder.022",
+        "Cylinder.023",
+        "Cylinder.024",
+        "Cylinder.025",
+        "Cylinder.026",
+        "Cylinder.027",
+        "Cylinder.028",
+        "Cylinder.029",
+        "Cylinder.030",
+        "Cylinder.031",
+        "Cylinder.032",
+        "Cylinder.033",
+        "Cylinder.034",
+        "Cylinder.035",
+        "Cylinder.036",
+        "Cylinder.037",
+        "Cylinder.038",
+        "Cylinder.039",
+        "Cylinder.040",
+        "Cylinder.041",
+        "Cylinder.042",
+        "Cylinder.043",
+        "Cylinder.044",
+        "Cylinder.045",
+        "Cylinder.046",
+        "Cylinder.047",
+        "Cylinder.048",
+        "Cylinder.049",
+        "Cylinder.050",
+        "Cylinder.051",
+        "Cylinder.052",
+        "Cylinder.053",
+        "Cylinder.054",
+        "Cylinder.055",
+        "Cylinder.056",
+        "Cylinder.057",
+        "Cylinder.058",
+        "Cylinder.059",
+        "Cylinder.060",
+        "Cylinder.061",
+        "Cylinder.062",
+        "Cylinder.063",
+        "Cylinder.064",
+        "Cylinder.065",
+        "Cylinder.066",
+        "Cylinder.067",
+        "Cylinder.068",
+        "Cylinder.069"
+      ],
+      "object_count": 55,
+      "origin": [
+        -1.2615207433700562,
+        1.024991512298584,
+        0.03321099281311035
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "role": "wheel",
+      "collision": {
+        "type": "cylinder",
+        "radius": 1.123047113418579,
+        "length": 0.7051947712898254
+      }
+    },
+    {
+      "collection": "Wheel_L",
+      "part": "wheel_l",
+      "link": "wheel_l_link",
+      "mesh": "meshes/wheel_l.obj",
+      "objects": [
+        "Circle.006",
+        "Circle.007",
+        "Cylinder.128",
+        "Cylinder.129"
+      ],
+      "object_count": 4,
+      "origin": [
+        1.0066862106323242,
+        -0.6239629983901978,
+        -0.6740057468414307
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "role": "wheel",
+      "collision": {
+        "type": "cylinder",
+        "radius": 0.404823899269104,
+        "length": 0.16104340553283691
+      }
+    },
+    {
+      "collection": "Wheel_R",
+      "part": "wheel_r",
+      "link": "wheel_r_link",
+      "mesh": "meshes/wheel_r.obj",
+      "objects": [
+        "Circle.004",
+        "Circle.005",
+        "Cylinder.070",
+        "Cylinder.123"
+      ],
+      "object_count": 4,
+      "origin": [
+        -1.0613641738891602,
+        -0.6239629983901978,
+        -0.6815270185470581
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "role": "wheel",
+      "collision": {
+        "type": "cylinder",
+        "radius": 0.404823899269104,
+        "length": 0.16104340553283691
+      }
+    }
+  ]
+}
