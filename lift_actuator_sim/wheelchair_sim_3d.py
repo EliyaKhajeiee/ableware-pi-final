@@ -281,6 +281,7 @@ class WheelchairLiftSim3D:
     def _init_physics(self, user_mass: float, max_force: float):
         self.user_mass = user_mass
         self.max_force = max_force
+        self._lay_figure_mass_fractions = None
 
         self.act_L = LinearActuator(
             max_force=max_force, stroke_length=ACT_STROKE,
@@ -298,6 +299,13 @@ class WheelchairLiftSim3D:
         # Lower ki reduces integrator windup on the long 4-inch approach.
         # Higher kd damps overshoot when decelerating near target.
         self.ctrl.set_target_position(0.0)
+
+    def _set_user_mass(self, user_mass: float):
+        """Keep the actuator load model and PyBullet ragdoll mass in sync."""
+        self.user_mass = max(0.0, float(user_mass))
+        # The two actuators share the user's weight evenly.
+        self.load.set_mass(self.user_mass / 2.0)
+        self._apply_user_mass_to_lay_figure(self.user_mass)
 
     # ── Safety ────────────────────────────────────────────────────────────
 
@@ -385,6 +393,44 @@ class WheelchairLiftSim3D:
                 jointDamping=0.03,
             )
 
+    def _cache_lay_figure_mass_distribution(self):
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+
+        body_parts = [-1] + list(range(p.getNumJoints(self.lay_figure_id)))
+        original_masses = [
+            max(0.0, p.getDynamicsInfo(self.lay_figure_id, part_index)[0])
+            for part_index in body_parts
+        ]
+        total_mass = sum(original_masses)
+        if total_mass <= 0.0:
+            equal_fraction = 1.0 / len(body_parts)
+            self._lay_figure_mass_fractions = {
+                part_index: equal_fraction for part_index in body_parts
+            }
+            return
+
+        # Preserve the URDF's original mass ratio across the torso, arms, and legs.
+        self._lay_figure_mass_fractions = {
+            part_index: mass / total_mass
+            for part_index, mass in zip(body_parts, original_masses)
+        }
+
+    def _apply_user_mass_to_lay_figure(self, user_mass: float):
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        if not self._lay_figure_mass_fractions:
+            self._cache_lay_figure_mass_distribution()
+        if not self._lay_figure_mass_fractions:
+            return
+
+        for part_index, fraction in self._lay_figure_mass_fractions.items():
+            p.changeDynamics(
+                self.lay_figure_id,
+                part_index,
+                mass=max(0.001, user_mass * fraction),
+            )
+
     def _build_lay_figure(self):
         """Drop the controllable lay figure onto the imported wheelchair."""
         self.lay_figure_id = None
@@ -405,6 +451,8 @@ class WheelchairLiftSim3D:
         )
         self._apply_lay_figure_texture()
         self._set_lay_figure_dynamics()
+        self._cache_lay_figure_mass_distribution()
+        self._apply_user_mass_to_lay_figure(self.user_mass)
         self._reset_lay_figure_pose()
         self._disable_lay_figure_motors()
 
@@ -1006,7 +1054,7 @@ class WheelchairLiftSim3D:
                         target_m = target_in * ACT_STROKE
 
                         if abs(user_mass - prev_weight) > 0.05:
-                            self.load.set_mass(user_mass / 2.0)
+                            self._set_user_mass(user_mass)
                             prev_weight = user_mass
 
                         if abs(max_force - prev_force) > 0.5:
@@ -1140,7 +1188,7 @@ class WheelchairLiftSim3D:
 
         def _reset_and_load(idx):
             s = SCENARIOS[idx % len(SCENARIOS)]
-            self.load.set_mass(s["mass_kg"] / 2.0)
+            self._set_user_mass(s["mass_kg"])
             self.act_L.max_force = s["force"]
             self.act_R.max_force = s["force"]
             for act in (self.act_L, self.act_R):
