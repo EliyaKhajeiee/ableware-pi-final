@@ -132,7 +132,7 @@ WHEELCHAIR_MODEL_SCALE = 0.25
 
 LAY_FIGURE_DROP_POS = [0.03, -0.02, 1.42]
 LAY_FIGURE_ORN = _q(0.0, 0.0, math.pi / 2.0)
-LAY_FIGURE_SCALE = 0.7
+LAY_FIGURE_SCALE = 0.8
 ENABLE_LAY_FIGURE_RAGDOLL = True
 
 LAY_FIGURE_SITTING_POSE = {
@@ -148,9 +148,16 @@ LAY_FIGURE_SITTING_POSE = {
     "r_foot_joint": 0.0,
 }
 
-# ── FIGURE ARM JOINT EDIT BLOCK ───────────────────────────────────────────
-# These are the locked arm joint angles, in radians.
-# Change these numbers if you want a new default pose.
+# ── FIGURE PARALYSIS / UPPER-BODY CONTROL BLOCK ──────────────────────────
+# This makes the figure behave like a person with lower-body paralysis:
+#   - torso, head, and arms are controlled so the upper body can hang/support
+#   - hips, knees, ankles, and feet stay passive/ragdoll
+# Change these numbers if you want a new default upper-body pose.
+FIGURE_UPPER_BODY_JOINT_TARGETS = {
+    "body_joint": -0.08,
+    "head_joint": 0.0,
+}
+
 FIGURE_ARM_JOINT_TARGETS = {
     "l_shoulder_joint": 0.55,
     "r_shoulder_joint": -0.55,
@@ -159,12 +166,21 @@ FIGURE_ARM_JOINT_TARGETS = {
     "l_hand_joint": 0.0,
     "r_hand_joint": 0.0,
 }
+LAY_FIGURE_SITTING_POSE.update(FIGURE_UPPER_BODY_JOINT_TARGETS)
 LAY_FIGURE_SITTING_POSE.update(FIGURE_ARM_JOINT_TARGETS)
 
-# Keep only the arms controlled so the underarm hooks have stable contact.
-# Body, head, and legs remain ragdoll/passive.
-LAY_FIGURE_LOCKED_ARM_JOINTS = set(FIGURE_ARM_JOINT_TARGETS)
-LAY_FIGURE_ARM_HOLD_FORCE = 1200.0
+LAY_FIGURE_CONTROLLED_UPPER_BODY_JOINTS = set(FIGURE_UPPER_BODY_JOINT_TARGETS) | set(FIGURE_ARM_JOINT_TARGETS)
+LAY_FIGURE_PASSIVE_LOWER_BODY_JOINTS = {
+    "l_thigh_joint",
+    "r_thigh_joint",
+    "l_shin_joint",
+    "r_shin_joint",
+    "l_ankle_joint",
+    "r_ankle_joint",
+    "l_foot_joint",
+    "r_foot_joint",
+}
+LAY_FIGURE_UPPER_BODY_HOLD_FORCE = 1200.0
 
 # ── DEVICE SHAPE EDIT BLOCK ───────────────────────────────────────────────
 # Change the underarm harness shape here.
@@ -180,7 +196,7 @@ DEVICE_SHAPE = {
     "pad_y_offset": 0.145,     # Left/right pad center spacing from body center.
     "pad_z_rest": 0.50,        # Pad center height when lift target is zero.
     "pad_half_x": 0.135,       # Pad half-length front/back; larger = longer hook.
-    "pad_half_y": 0.055,       # Pad half-width left/right; larger = wider hook.
+    "pad_half_y": 0.005,       # Pad half-width left/right; larger = wider hook.
     "pad_half_z": 0.026,       # Pad half-thickness.
     "lift_gain": 3.35,         # Pad travel multiplier from actuator extension.
 
@@ -435,13 +451,13 @@ class WheelchairLiftSim3D:
         if getattr(self, "lay_figure_id", None) is None:
             return
         indices = self._lay_figure_joint_indices()
-        locked_arm_indices = {
+        controlled_indices = {
             indices[name]
-            for name in LAY_FIGURE_LOCKED_ARM_JOINTS
+            for name in LAY_FIGURE_CONTROLLED_UPPER_BODY_JOINTS
             if name in indices
         }
         for joint_index in range(p.getNumJoints(self.lay_figure_id)):
-            if joint_index in locked_arm_indices:
+            if joint_index in controlled_indices:
                 continue
             p.setJointMotorControl2(
                 self.lay_figure_id,
@@ -450,16 +466,18 @@ class WheelchairLiftSim3D:
                 targetVelocity=0,
                 force=0,
             )
-        self._lock_lay_figure_arm_pose(indices)
+        self._lock_lay_figure_upper_body_pose(indices)
 
-    def _lock_lay_figure_arm_pose(self, indices=None):
-        """Hold only arm joints; the rest of the figure stays as a ragdoll."""
+    def _lock_lay_figure_upper_body_pose(self, indices=None):
+        """Hold upper body joints; lower body stays passive/ragdoll."""
         if getattr(self, "lay_figure_id", None) is None:
             return
         indices = indices or self._lay_figure_joint_indices()
-        for joint_name in LAY_FIGURE_LOCKED_ARM_JOINTS:
+        target_map = {}
+        target_map.update(FIGURE_UPPER_BODY_JOINT_TARGETS)
+        target_map.update(FIGURE_ARM_JOINT_TARGETS)
+        for joint_name, target in target_map.items():
             joint_index = indices.get(joint_name)
-            target = LAY_FIGURE_SITTING_POSE.get(joint_name)
             if joint_index is None or target is None:
                 continue
             p.setJointMotorControl2(
@@ -467,7 +485,7 @@ class WheelchairLiftSim3D:
                 joint_index,
                 p.POSITION_CONTROL,
                 targetPosition=target,
-                force=LAY_FIGURE_ARM_HOLD_FORCE,
+                force=LAY_FIGURE_UPPER_BODY_HOLD_FORCE,
                 positionGain=0.55,
                 velocityGain=0.85,
                 maxVelocity=3.0,
@@ -481,7 +499,7 @@ class WheelchairLiftSim3D:
         torso_link = indices.get("body_joint", 0)
         arm_links = [
             indices[name]
-            for name in LAY_FIGURE_LOCKED_ARM_JOINTS
+            for name in FIGURE_ARM_JOINT_TARGETS
             if name in indices
         ]
         parent_pos, parent_orn = p.getLinkState(self.lay_figure_id, torso_link)[:2]
@@ -519,15 +537,17 @@ class WheelchairLiftSim3D:
             return
         p.changeDynamics(self.lay_figure_id, -1, linearDamping=0.04, angularDamping=0.08)
         for link_index in range(p.getNumJoints(self.lay_figure_id)):
+            joint_name = p.getJointInfo(self.lay_figure_id, link_index)[1].decode()
+            is_passive_lower_body = joint_name in LAY_FIGURE_PASSIVE_LOWER_BODY_JOINTS
             p.changeDynamics(
                 self.lay_figure_id,
                 link_index,
                 lateralFriction=0.8,
-                spinningFriction=0.03,
+                spinningFriction=0.02 if is_passive_lower_body else 0.03,
                 rollingFriction=0.02,
-                linearDamping=0.04,
-                angularDamping=0.08,
-                jointDamping=0.03,
+                linearDamping=0.02 if is_passive_lower_body else 0.04,
+                angularDamping=0.03 if is_passive_lower_body else 0.08,
+                jointDamping=0.005 if is_passive_lower_body else 0.03,
             )
 
     def _cache_lay_figure_mass_distribution(self):
