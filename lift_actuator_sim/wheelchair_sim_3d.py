@@ -138,12 +138,6 @@ ENABLE_LAY_FIGURE_RAGDOLL = True
 LAY_FIGURE_SITTING_POSE = {
     "body_joint": -0.08,
     "head_joint": 0.0,
-    "l_shoulder_joint": -0.55,
-    "r_shoulder_joint": 0.55,
-    "l_forearm_joint": 0.85,
-    "r_forearm_joint": 0.85,
-    "l_hand_joint": 0.0,
-    "r_hand_joint": 0.0,
     "l_thigh_joint": -1.32,
     "r_thigh_joint": -1.32,
     "l_shin_joint": 1.25,
@@ -154,20 +148,49 @@ LAY_FIGURE_SITTING_POSE = {
     "r_foot_joint": 0.0,
 }
 
-ARMPIT_PAD_X = 0.02
-ARMPIT_PAD_Y_OFF = 0.145
-ARMPIT_PAD_Z_REST = 0.50
-ARMPIT_PAD_HALF_X = 0.135
-ARMPIT_PAD_HALF_Y = 0.055
-ARMPIT_PAD_HALF_Z = 0.026
-ARMPIT_LIFT_GAIN = 3.35
-ARMPIT_PAD_ATTACH_FRONT_X = ARMPIT_PAD_X + ARMPIT_PAD_HALF_X * 0.72
-ARMPIT_PAD_ATTACH_REAR_X = ARMPIT_PAD_X - ARMPIT_PAD_HALF_X * 0.72
-HARNESS_SIDE_Y = 0.290
-HARNESS_BACK_X = -0.055
-HARNESS_FRONT_X = 0.080
-HARNESS_SHOULDER_Z_OFFSET = 0.185
-HARNESS_LABEL_Z = 1.42
+# ── FIGURE ARM JOINT EDIT BLOCK ───────────────────────────────────────────
+# These are the locked arm joint angles, in radians.
+# Change these numbers if you want a new default pose.
+FIGURE_ARM_JOINT_TARGETS = {
+    "l_shoulder_joint": 0.55,
+    "r_shoulder_joint": -0.55,
+    "l_forearm_joint": 0.85,
+    "r_forearm_joint": -0.85,
+    "l_hand_joint": 0.0,
+    "r_hand_joint": 0.0,
+}
+LAY_FIGURE_SITTING_POSE.update(FIGURE_ARM_JOINT_TARGETS)
+
+# Keep only the arms controlled so the underarm hooks have stable contact.
+# Body, head, and legs remain ragdoll/passive.
+LAY_FIGURE_LOCKED_ARM_JOINTS = set(FIGURE_ARM_JOINT_TARGETS)
+LAY_FIGURE_ARM_HOLD_FORCE = 1200.0
+
+# ── DEVICE SHAPE EDIT BLOCK ───────────────────────────────────────────────
+# Change the underarm harness shape here.
+#
+# Coordinate reminder:
+#   X = front/back, Y = left/right, Z = up/down.
+#
+# The two collision pads are the real lifting surfaces. The visual harness is
+# built around those pads, with an empty center so the torso fits inside.
+DEVICE_SHAPE = {
+    # Underarm hook/collision pad.
+    "pad_x": 0.02,             # Front/back location of both underarm pads.
+    "pad_y_offset": 0.145,     # Left/right pad center spacing from body center.
+    "pad_z_rest": 0.50,        # Pad center height when lift target is zero.
+    "pad_half_x": 0.135,       # Pad half-length front/back; larger = longer hook.
+    "pad_half_y": 0.055,       # Pad half-width left/right; larger = wider hook.
+    "pad_half_z": 0.026,       # Pad half-thickness.
+    "lift_gain": 3.35,         # Pad travel multiplier from actuator extension.
+
+    # Visual open-frame harness around the collision pads.
+    "side_y": 0.290,           # Side module spacing; larger = wider device interval.
+    "back_x": -0.055,          # Rear/back strap X position behind the torso.
+    "front_x": 0.080,          # Forward end of the shoulder guide.
+    "shoulder_z_offset": 0.185,  # Height from pad center to shoulder guide.
+    "label_z": 1.42,
+}
 
 
 # ── Network API (used when running with --serve) ───────────────────────────
@@ -297,6 +320,7 @@ class WheelchairLiftSim3D:
         self.user_mass = user_mass
         self.max_force = max_force
         self._lay_figure_mass_fractions = None
+        self._lay_figure_arm_constraint_ids = []
 
         self.act_L = LinearActuator(
             max_force=max_force, stroke_length=ACT_STROKE,
@@ -380,10 +404,45 @@ class WheelchairLiftSim3D:
             if joint_index is not None:
                 p.resetJointState(self.lay_figure_id, joint_index, target)
 
+    def _remove_lay_figure_arm_constraints(self):
+        for constraint_id in getattr(self, "_lay_figure_arm_constraint_ids", []):
+            try:
+                p.removeConstraint(constraint_id)
+            except Exception:
+                pass
+        self._lay_figure_arm_constraint_ids = []
+
+    def _set_lay_figure_arm_targets(self, targets, rebuild_constraints=True):
+        """Update the non-ragdoll arm pose and optionally rebuild arm constraints."""
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+
+        indices = self._lay_figure_joint_indices()
+        for joint_name, target in targets.items():
+            if joint_name not in FIGURE_ARM_JOINT_TARGETS:
+                continue
+            FIGURE_ARM_JOINT_TARGETS[joint_name] = float(target)
+            LAY_FIGURE_SITTING_POSE[joint_name] = float(target)
+            joint_index = indices.get(joint_name)
+            if joint_index is not None:
+                p.resetJointState(self.lay_figure_id, joint_index, float(target))
+
+        if rebuild_constraints:
+            self._remove_lay_figure_arm_constraints()
+            self._create_lay_figure_arm_constraints()
+
     def _disable_lay_figure_motors(self):
         if getattr(self, "lay_figure_id", None) is None:
             return
+        indices = self._lay_figure_joint_indices()
+        locked_arm_indices = {
+            indices[name]
+            for name in LAY_FIGURE_LOCKED_ARM_JOINTS
+            if name in indices
+        }
         for joint_index in range(p.getNumJoints(self.lay_figure_id)):
+            if joint_index in locked_arm_indices:
+                continue
             p.setJointMotorControl2(
                 self.lay_figure_id,
                 joint_index,
@@ -391,6 +450,69 @@ class WheelchairLiftSim3D:
                 targetVelocity=0,
                 force=0,
             )
+        self._lock_lay_figure_arm_pose(indices)
+
+    def _lock_lay_figure_arm_pose(self, indices=None):
+        """Hold only arm joints; the rest of the figure stays as a ragdoll."""
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        indices = indices or self._lay_figure_joint_indices()
+        for joint_name in LAY_FIGURE_LOCKED_ARM_JOINTS:
+            joint_index = indices.get(joint_name)
+            target = LAY_FIGURE_SITTING_POSE.get(joint_name)
+            if joint_index is None or target is None:
+                continue
+            p.setJointMotorControl2(
+                self.lay_figure_id,
+                joint_index,
+                p.POSITION_CONTROL,
+                targetPosition=target,
+                force=LAY_FIGURE_ARM_HOLD_FORCE,
+                positionGain=0.55,
+                velocityGain=0.85,
+                maxVelocity=3.0,
+            )
+
+    def _create_lay_figure_arm_constraints(self):
+        """Make only the arms rigid relative to the torso for hook lifting."""
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        indices = self._lay_figure_joint_indices()
+        torso_link = indices.get("body_joint", 0)
+        arm_links = [
+            indices[name]
+            for name in LAY_FIGURE_LOCKED_ARM_JOINTS
+            if name in indices
+        ]
+        parent_pos, parent_orn = p.getLinkState(self.lay_figure_id, torso_link)[:2]
+        inv_parent_pos, inv_parent_orn = p.invertTransform(parent_pos, parent_orn)
+
+        self._lay_figure_arm_constraint_ids = []
+        for arm_link in arm_links:
+            child_pos, child_orn = p.getLinkState(self.lay_figure_id, arm_link)[:2]
+            rel_pos, rel_orn = p.multiplyTransforms(
+                inv_parent_pos,
+                inv_parent_orn,
+                child_pos,
+                child_orn,
+            )
+            try:
+                constraint_id = p.createConstraint(
+                    self.lay_figure_id,
+                    torso_link,
+                    self.lay_figure_id,
+                    arm_link,
+                    p.JOINT_FIXED,
+                    [0, 0, 0],
+                    rel_pos,
+                    [0, 0, 0],
+                    rel_orn,
+                    [0, 0, 0, 1],
+                )
+                p.changeConstraint(constraint_id, maxForce=3500.0)
+                self._lay_figure_arm_constraint_ids.append(constraint_id)
+            except Exception as exc:
+                print(f"[WARN] Could not lock arm link {arm_link}: {exc}")
 
     def _set_lay_figure_dynamics(self):
         if getattr(self, "lay_figure_id", None) is None:
@@ -469,6 +591,7 @@ class WheelchairLiftSim3D:
         self._cache_lay_figure_mass_distribution()
         self._apply_user_mass_to_lay_figure(self.user_mass)
         self._reset_lay_figure_pose()
+        self._create_lay_figure_arm_constraints()
         self._disable_lay_figure_motors()
 
     # ── Floor ─────────────────────────────────────────────────────────────
@@ -611,21 +734,29 @@ class WheelchairLiftSim3D:
         self._moving_device_parts = []   # (body_id, x, y, z_offset, orn, color_mode)
 
         def add_moving_box(half, pos, color, z_offset, color_mode, orn=None):
+            # All harness boxes move together in Z. Store only the fixed X/Y,
+            # the Z offset from the moving pad center, and the display color mode.
             body_id = _vbox(half, pos, orn or _q(), color=color)
             self._moving_device_parts.append(
                 (body_id, pos[0], pos[1], z_offset, orn or _q(), color_mode)
             )
 
-        support_cz = ARMPIT_PAD_Z_REST
-        shoulder_z = support_cz + HARNESS_SHOULDER_Z_OFFSET
+        shape = DEVICE_SHAPE
+        support_cz = shape["pad_z_rest"]
+        shoulder_z = support_cz + shape["shoulder_z_offset"]
 
+        # Build the left and right halves. "side" is +1 for one side of the body
+        # and -1 for the other, so the same dimensions stay symmetric.
         for side in (1.0, -1.0):
-            side_y = side * HARNESS_SIDE_Y
-            pad_y = side * ARMPIT_PAD_Y_OFF
+            side_y = side * shape["side_y"]
+            pad_y = side * shape["pad_y_offset"]
+            # This bridge fills only the side gap between the outer module and
+            # the armpit hook. It does not cross the torso center.
             reach_center_y = (side_y + pad_y) / 2.0
             reach_half_y = abs(side_y - pad_y) / 2.0
 
             # Rib-side rectangular lift block visible in both front and side views.
+            # Tune DEVICE_SHAPE["side_y"] to move this block farther from the torso.
             add_moving_box(
                 [0.036, 0.030, 0.150],
                 [0.025, side_y, support_cz + 0.060],
@@ -642,43 +773,48 @@ class WheelchairLiftSim3D:
                 "active",
             )
             # Short horizontal underarm bridge from side block into the armpit pad.
+            # This makes the device look connected while preserving the open middle.
             add_moving_box(
                 [0.018, reach_half_y, 0.018],
-                [ARMPIT_PAD_X, reach_center_y, support_cz + 0.020],
+                [shape["pad_x"], reach_center_y, support_cz + 0.020],
                 C_FRAME_MD,
                 0.020,
                 "active",
             )
             # Small outer lip makes the underarm support read like a hanging hook.
+            # It is visual-only; the actual collision hook is created in _build_sling.
             add_moving_box(
                 [0.030, 0.012, 0.070],
-                [ARMPIT_PAD_X - 0.012, side * (ARMPIT_PAD_Y_OFF + ARMPIT_PAD_HALF_Y + 0.010),
+                [shape["pad_x"] - 0.012,
+                 side * (shape["pad_y_offset"] + shape["pad_half_y"] + 0.010),
                  support_cz + 0.058],
                 C_FRAME_MD,
                 0.058,
                 "active",
             )
             # Back upright and shoulder cap approximate the curved shoulder strap.
+            # These pieces sit behind/over the shoulders and help match the sketch.
             add_moving_box(
                 [0.016, 0.020, 0.150],
-                [HARNESS_BACK_X, side_y, support_cz + 0.130],
+                [shape["back_x"], side_y, support_cz + 0.130],
                 C_FRAME_DK,
                 0.130,
                 "frame",
             )
             add_moving_box(
                 [0.052, 0.020, 0.018],
-                [(HARNESS_BACK_X + HARNESS_FRONT_X) / 2.0, side_y, shoulder_z],
+                [(shape["back_x"] + shape["front_x"]) / 2.0, side_y, shoulder_z],
                 C_FRAME_DK,
-                HARNESS_SHOULDER_Z_OFFSET,
+                shape["shoulder_z_offset"],
                 "frame",
                 _q(0.0, -0.45, 0.0),
             )
 
         # Rear cross strap sits behind the torso; the center/front stays open.
+        # Remove or shorten this part if you want a completely separate left/right frame.
         add_moving_box(
-            [0.016, HARNESS_SIDE_Y, 0.018],
-            [HARNESS_BACK_X, 0.0, support_cz + 0.145],
+            [0.016, shape["side_y"], 0.018],
+            [shape["back_x"], 0.0, support_cz + 0.145],
             C_FRAME_DK,
             0.145,
             "frame",
@@ -693,13 +829,17 @@ class WheelchairLiftSim3D:
           • the middle is empty so the torso fits inside the device
           • no bottom sling panel or chest-crossing collision is used
         """
-        z0 = ARMPIT_PAD_Z_REST
-        self._sling_parts = []   # (body_id, x_offset, y_offset)
+        shape = DEVICE_SHAPE
+        z0 = shape["pad_z_rest"]
+        self._sling_parts = []   # (body_id, x_offset, y_offset, z_offset)
 
-        for sy in (ARMPIT_PAD_Y_OFF, -ARMPIT_PAD_Y_OFF):
+        for sy in (shape["pad_y_offset"], -shape["pad_y_offset"]):
+            # This is the physical support surface. If the figure misses the
+            # hook, adjust DEVICE_SHAPE["pad_y_offset"] and ["pad_half_y"] first.
+            side = 1.0 if sy > 0 else -1.0
             bid = _kbox(
-                [ARMPIT_PAD_HALF_X, ARMPIT_PAD_HALF_Y, ARMPIT_PAD_HALF_Z],
-                [ARMPIT_PAD_X, sy, z0],
+                [shape["pad_half_x"], shape["pad_half_y"], shape["pad_half_z"]],
+                [shape["pad_x"], sy, z0],
                 color=C_SLING_DN,
             )
             p.changeDynamics(
@@ -710,7 +850,25 @@ class WheelchairLiftSim3D:
                 rollingFriction=0.02,
                 restitution=0.0,
             )
-            self._sling_parts.append((bid, ARMPIT_PAD_X, sy))
+            self._sling_parts.append((bid, shape["pad_x"], sy, 0.0))
+
+            # Physical outer lip: this forms the "hook" wall that prevents the
+            # upper arm from sliding away from the underarm pad during lifting.
+            lip_y = sy + side * (shape["pad_half_y"] + 0.012)
+            lip = _kbox(
+                [shape["pad_half_x"] * 0.82, 0.012, 0.074],
+                [shape["pad_x"] - 0.012, lip_y, z0 + 0.060],
+                color=C_FRAME_MD,
+            )
+            p.changeDynamics(
+                lip,
+                -1,
+                lateralFriction=1.8,
+                spinningFriction=0.05,
+                rollingFriction=0.02,
+                restitution=0.0,
+            )
+            self._sling_parts.append((lip, shape["pad_x"] - 0.012, lip_y, 0.060))
 
         # Back-compat: sling_id points to the first moving support pad.
         self.sling_id     = self._sling_parts[0][0]
@@ -733,7 +891,7 @@ class WheelchairLiftSim3D:
     # ── Static 3-D annotations ───────────────────────────────────────────
 
     def _build_labels(self):
-        title_z = HARNESS_LABEL_Z
+        title_z = DEVICE_SHAPE["label_z"]
         p.addUserDebugText(
             "DUAL UNDERARM HARNESS LIFT SYSTEM",
             [0.0, 0.0, title_z],
@@ -745,8 +903,9 @@ class WheelchairLiftSim3D:
 
     def _build_lift_indicator(self):
         """Vertical ruler showing underarm support height range."""
-        z_bot = ARMPIT_PAD_Z_REST + ARMPIT_PAD_HALF_Z
-        z_top = z_bot + ACT_STROKE * ARMPIT_LIFT_GAIN
+        shape = DEVICE_SHAPE
+        z_bot = shape["pad_z_rest"] + shape["pad_half_z"]
+        z_top = z_bot + ACT_STROKE * shape["lift_gain"]
         rx    = RULER_X
 
         p.addUserDebugLine([rx, 0, z_bot], [rx, 0, z_top],
@@ -784,9 +943,12 @@ class WheelchairLiftSim3D:
         t = ext / max(ACT_STROKE, 1e-9)
         # The harness yoke uses a linkage gain so the supports can start low,
         # then rise into the armpit area as the actuator extends.
-        support_top_z = ARMPIT_PAD_Z_REST + ARMPIT_PAD_HALF_Z + ext * ARMPIT_LIFT_GAIN
-        support_cz    = support_top_z - ARMPIT_PAD_HALF_Z
+        shape = DEVICE_SHAPE
+        support_top_z = shape["pad_z_rest"] + shape["pad_half_z"] + ext * shape["lift_gain"]
+        support_cz    = support_top_z - shape["pad_half_z"]
 
+        # Move every visual harness part to the same lift height as the pads.
+        # X/Y stay fixed so the device keeps its open frame shape while rising.
         for body_id, x, y, z_offset, orn, color_mode in self._moving_device_parts:
             _move(body_id, [x, y, support_cz + z_offset], orn)
             if color_mode == "active":
@@ -798,9 +960,10 @@ class WheelchairLiftSim3D:
             else:
                 _recolor(body_id, C_ACT_HOUSE)
 
-        for i, sy in enumerate((ARMPIT_PAD_Y_OFF, -ARMPIT_PAD_Y_OFF)):
-            base = [ARMPIT_PAD_X, sy, support_top_z + 0.010]
-            tip  = [ARMPIT_PAD_X, sy, support_top_z + min(0.30, force_per_act / 100.0 * 0.05)]
+        # Debug arrows show the lift force direction from each armpit hook.
+        for i, sy in enumerate((shape["pad_y_offset"], -shape["pad_y_offset"])):
+            base = [shape["pad_x"], sy, support_top_z + 0.010]
+            tip  = [shape["pad_x"], sy, support_top_z + min(0.30, force_per_act / 100.0 * 0.05)]
             key  = f'arr{i}'
             if key in self._arrows:
                 p.addUserDebugLine(base, tip, arr_c, lineWidth=4,
@@ -810,14 +973,15 @@ class WheelchairLiftSim3D:
                     base, tip, arr_c, lineWidth=4, lifeTime=0)
 
         # ── Underarm support pads ──────────────────────────────────────
-        for bid, ox, oy in self._sling_parts:
-            _move(bid, [ox, oy, support_cz])
+        # These are the two collision bodies that actually contact and lift the figure.
+        for bid, ox, oy, oz in self._sling_parts:
+            _move(bid, [ox, oy, support_cz + oz])
             _recolor(bid, sling_c)
 
         # ── Lift indicator (ruler pointer) ─────────────────────────────
         # Map support rise to ruler: support_top_z at rest -> z_bot, at full -> z_top
-        z_bot = ARMPIT_PAD_Z_REST + ARMPIT_PAD_HALF_Z
-        z_top = z_bot + ACT_STROKE * ARMPIT_LIFT_GAIN
+        z_bot = shape["pad_z_rest"] + shape["pad_half_z"]
+        z_top = z_bot + ACT_STROKE * shape["lift_gain"]
         z_ind = z_bot + t * (z_top - z_bot)
         rx = RULER_X
         ind_from = [rx, 0, z_ind]
