@@ -130,7 +130,7 @@ WHEELCHAIR_MODEL_POS = [0.03, -0.02, 0.25]
 WHEELCHAIR_MODEL_ORN = _q(0.0, 0.0, math.pi / 2.0)
 WHEELCHAIR_MODEL_SCALE = 0.25
 
-LAY_FIGURE_DROP_POS = [0.03, -0.02, 1.42]
+LAY_FIGURE_DROP_POS = [0.13, -0.02, 1.02]
 LAY_FIGURE_ORN = _q(0.0, 0.0, math.pi / 2.0)
 LAY_FIGURE_SCALE = 0.8
 ENABLE_LAY_FIGURE_RAGDOLL = True
@@ -756,7 +756,20 @@ class WheelchairLiftSim3D:
         def add_moving_box(half, pos, color, z_offset, color_mode, orn=None):
             # All harness boxes move together in Z. Store only the fixed X/Y,
             # the Z offset from the moving pad center, and the display color mode.
-            body_id = _vbox(half, pos, orn or _q(), color=color)
+            # Black frame bars use _kbox so the figure can collide with them.
+            # Other parts stay visual-only unless they are physical hook pads.
+            if color_mode == "frame":
+                body_id = _kbox(half, pos, orn or _q(), color=color)
+                p.changeDynamics(
+                    body_id,
+                    -1,
+                    lateralFriction=1.2,
+                    spinningFriction=0.03,
+                    rollingFriction=0.01,
+                    restitution=0.0,
+                )
+            else:
+                body_id = _vbox(half, pos, orn or _q(), color=color)
             self._moving_device_parts.append(
                 (body_id, pos[0], pos[1], z_offset, orn or _q(), color_mode)
             )
