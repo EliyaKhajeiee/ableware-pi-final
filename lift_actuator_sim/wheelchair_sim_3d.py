@@ -92,10 +92,14 @@ WHEELCHAIR_MODEL_POS = [0.03, -0.02, 0.25]
 WHEELCHAIR_MODEL_ORN = _q(0.0, 0.0, math.pi / 2.0)
 WHEELCHAIR_MODEL_SCALE = 0.25
 
-LAY_FIGURE_DROP_POS = [0.13, -0.02, 1.02]
+LAY_FIGURE_DROP_POS = [0.13, -0.02, 0.52]
 LAY_FIGURE_ORN = _q(0.0, 0.0, math.pi / 2.0)
 LAY_FIGURE_SCALE = 0.8
 ENABLE_LAY_FIGURE_RAGDOLL = True
+
+# Keep this False when the legs should remain ragdoll on the wheelchair. The
+# armpit constraints below attach only the upper body to the lift device.
+FIGURE_FOLLOWS_DEVICE_HEIGHT = False
 
 LAY_FIGURE_SITTING_POSE = {
     "body_joint": -0.08,
@@ -143,6 +147,16 @@ LAY_FIGURE_PASSIVE_LOWER_BODY_JOINTS = {
     "r_foot_joint",
 }
 LAY_FIGURE_UPPER_BODY_HOLD_FORCE = 1200.0
+
+# Attach the armpit/shoulder links to the moving underarm pads. This makes the
+# lift carry the figure upward while the legs still move as ragdoll physics.
+ATTACH_ARMPITS_TO_DEVICE = True
+ARMPIT_DEVICE_ATTACH_FORCE = 50000.0
+ARMPIT_DEVICE_ATTACH_LINKS = (
+    # Figure joint/link name, underarm pad index. Swap 0/1 if left/right looks reversed.
+    ("l_shoulder_joint", 0),
+    ("r_shoulder_joint", 1),
+)
 
 # ── Network API (used when running with --serve) ───────────────────────────
 
@@ -272,6 +286,9 @@ class WheelchairLiftSim3D:
         self.max_force = max_force
         self._lay_figure_mass_fractions = None
         self._lay_figure_arm_constraint_ids = []
+        self._armpit_device_constraint_ids = []
+        self._figure_follow_support_z = None
+        self._figure_follow_base_z = None
 
         self.act_L = LinearActuator(
             max_force=max_force, stroke_length=ACT_STROKE,
@@ -467,6 +484,75 @@ class WheelchairLiftSim3D:
             except Exception as exc:
                 print(f"[WARN] Could not lock arm link {arm_link}: {exc}")
 
+    def _remove_armpit_device_constraints(self):
+        for constraint_id in getattr(self, "_armpit_device_constraint_ids", []):
+            try:
+                p.removeConstraint(constraint_id)
+            except Exception:
+                pass
+        self._armpit_device_constraint_ids = []
+
+    def _create_armpit_device_constraints(self):
+        """Stick figure armpit links to the moving underarm pads."""
+        self._remove_armpit_device_constraints()
+        if not ATTACH_ARMPITS_TO_DEVICE:
+            return
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        if not getattr(self, "harness", None):
+            return
+
+        pad_ids = getattr(self.harness, "underarm_pad_ids", [])
+        if len(pad_ids) < 2:
+            return
+
+        self.harness.update(
+            self._current_lift_extension(),
+            self.act_L.stalled or self.act_R.stalled,
+            self.ctrl.overload_detected,
+            self.ctrl.at_target(),
+            0.0,
+        )
+
+        indices = self._lay_figure_joint_indices()
+        for joint_name, pad_index in ARMPIT_DEVICE_ATTACH_LINKS:
+            link_index = indices.get(joint_name)
+            if link_index is None or pad_index >= len(pad_ids):
+                continue
+
+            pad_id = pad_ids[pad_index]
+            pad_pos, pad_orn = p.getBasePositionAndOrientation(pad_id)
+            link_pos, link_orn = p.getLinkState(self.lay_figure_id, link_index)[:2]
+            inv_pad_pos, inv_pad_orn = p.invertTransform(pad_pos, pad_orn)
+            parent_frame_pos, parent_frame_orn = p.multiplyTransforms(
+                inv_pad_pos,
+                inv_pad_orn,
+                link_pos,
+                link_orn,
+            )
+
+            try:
+                constraint_id = p.createConstraint(
+                    pad_id,
+                    -1,
+                    self.lay_figure_id,
+                    link_index,
+                    p.JOINT_FIXED,
+                    [0, 0, 0],
+                    parent_frame_pos,
+                    [0, 0, 0],
+                    parent_frame_orn,
+                    [0, 0, 0, 1],
+                )
+                p.changeConstraint(
+                    constraint_id,
+                    maxForce=ARMPIT_DEVICE_ATTACH_FORCE,
+                    erp=0.95,
+                )
+                self._armpit_device_constraint_ids.append(constraint_id)
+            except Exception as exc:
+                print(f"[WARN] Could not attach {joint_name} to device: {exc}")
+
     def _set_lay_figure_dynamics(self):
         if getattr(self, "lay_figure_id", None) is None:
             return
@@ -548,6 +634,8 @@ class WheelchairLiftSim3D:
         self._reset_lay_figure_pose()
         self._create_lay_figure_arm_constraints()
         self._disable_lay_figure_motors()
+        self._reset_figure_device_follow_anchor()
+        self._create_armpit_device_constraints()
 
     # ── Floor ─────────────────────────────────────────────────────────────
 
@@ -726,6 +814,71 @@ class WheelchairLiftSim3D:
         self.harness.update_indicator(ext)
         self._ind_line_id = self.harness.indicator_line_id
 
+    def _current_lift_extension(self):
+        return (self.act_L.position + self.act_R.position) / 2.0
+
+    def _reset_figure_device_follow_anchor(self):
+        """Save the starting figure/device height relationship."""
+        self._figure_follow_support_z = None
+        self._figure_follow_base_z = None
+        if not FIGURE_FOLLOWS_DEVICE_HEIGHT:
+            return
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        if not getattr(self, "harness", None):
+            return
+
+        _, support_center_z = self.harness.support_height(self._current_lift_extension())
+        base_pos, _ = p.getBasePositionAndOrientation(self.lay_figure_id)
+        self._figure_follow_support_z = support_center_z
+        self._figure_follow_base_z = base_pos[2]
+
+    def _move_figure_with_device(self):
+        """Move the whole figure vertically with the underarm lift device."""
+        if not FIGURE_FOLLOWS_DEVICE_HEIGHT:
+            return
+        if getattr(self, "lay_figure_id", None) is None:
+            return
+        if self._figure_follow_support_z is None or self._figure_follow_base_z is None:
+            self._reset_figure_device_follow_anchor()
+            return
+
+        _, support_center_z = self.harness.support_height(self._current_lift_extension())
+        target_base_z = (
+            self._figure_follow_base_z
+            + support_center_z
+            - self._figure_follow_support_z
+        )
+        base_pos, base_orn = p.getBasePositionAndOrientation(self.lay_figure_id)
+        if abs(target_base_z - base_pos[2]) < 1e-6:
+            return
+
+        p.resetBasePositionAndOrientation(
+            self.lay_figure_id,
+            [base_pos[0], base_pos[1], target_base_z],
+            base_orn,
+        )
+        linear_vel, angular_vel = p.getBaseVelocity(self.lay_figure_id)
+        p.resetBaseVelocity(
+            self.lay_figure_id,
+            linearVelocity=[linear_vel[0], linear_vel[1], 0.0],
+            angularVelocity=angular_vel,
+        )
+
+    def _step_pybullet(self, force_per_act: float = 0.0):
+        """Move the device and stuck figure before each PyBullet physics step."""
+        ext = self._current_lift_extension()
+        self.harness.update(
+            ext,
+            self.act_L.stalled or self.act_R.stalled,
+            self.ctrl.overload_detected,
+            self.ctrl.at_target(),
+            force_per_act,
+        )
+        self._move_figure_with_device()
+        self._disable_lay_figure_motors()
+        p.stepSimulation()
+
     # ── Main run loop ─────────────────────────────────────────────────────
 
     def run(self, external_control: bool = False):
@@ -875,8 +1028,7 @@ class WheelchairLiftSim3D:
                             self.act_R.set_pwm(pwm)
                             self.act_L.step(BASE_DT, req_force)
                             self.act_R.step(BASE_DT, req_force)
-                            self._disable_lay_figure_motors()
-                            p.stepSimulation()
+                            self._step_pybullet(req_force)
 
                             self._duty_total += 1
                             if abs(pwm) > 0.02 and not self.act_L.stalled:
@@ -1043,8 +1195,7 @@ class WheelchairLiftSim3D:
                             self.act_R.set_pwm(pwm)
                             self.act_L.step(BASE_DT, req)
                             self.act_R.step(BASE_DT, req)
-                            self._disable_lay_figure_motors()
-                            p.stepSimulation()
+                            self._step_pybullet(req)
 
                         ext      = (self.act_L.position + self.act_R.position) / 2.0
                         stalled  = self.act_L.stalled or self.act_R.stalled

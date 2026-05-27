@@ -102,6 +102,7 @@ class UnderarmHarness:
         self.shape = shape or DEVICE_SHAPE
         self.moving_visual_parts = []     # (body_id, x, y, z_offset, orn, color_mode)
         self.collision_parts = []         # (body_id, x, y, z_offset)
+        self.underarm_pad_ids = []        # Horizontal pads used as armpit anchors.
         self.force_arrows = {}
         self.indicator_line_id = -1
         self.sling_id = None              # Back-compat name used by old code/tests.
@@ -245,6 +246,7 @@ class UnderarmHarness:
             )
             pad_x, pad_y, _ = self._pos(shape["pad_x"], sy, z0)
             self.collision_parts.append((pad, pad_x, pad_y, 0.0))
+            self.underarm_pad_ids.append(pad)
 
             # Vertical hook wall so the arm does not slide off the pad.
             lip_y = sy + side * (shape["pad_half_y"] + 0.012)
