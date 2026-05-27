@@ -50,40 +50,10 @@ import pybullet_data
 from actuator import LinearActuator
 from load import UserLoad
 from controller import LiftController
+from underarm_harness import UnderarmHarness
 
 from core.sim_constants import *
 from core.sim_pybHelper import _q, _box, _cyl
-
-
-# Visual-only (no collision) — for kinematic animated bodies
-
-def _vbox(half, pos, orn=None, color=None):
-    orn = orn or _q()
-    vis = (p.createVisualShape(p.GEOM_BOX, halfExtents=half, rgbaColor=color)
-           if color else -1)
-    return p.createMultiBody(0.0, -1, vis, pos, orn)
-
-
-def _vcyl(r, h, pos, orn=None, color=None):
-    orn = orn or _q()
-    vis = (p.createVisualShape(p.GEOM_CYLINDER, radius=r, length=h, rgbaColor=color)
-           if color else -1)
-    return p.createMultiBody(0.0, -1, vis, pos, orn)
-
-
-def _vsph(r, pos, color=None):
-    vis = (p.createVisualShape(p.GEOM_SPHERE, radius=r, rgbaColor=color)
-           if color else -1)
-    return p.createMultiBody(0.0, -1, vis, pos)
-
-
-def _kbox(half, pos, orn=None, color=None):
-    """Massless box with collision, used for kinematic lift-contact surfaces."""
-    orn = orn or _q()
-    col = p.createCollisionShape(p.GEOM_BOX, halfExtents=half)
-    vis = (p.createVisualShape(p.GEOM_BOX, halfExtents=half, rgbaColor=color)
-           if color else -1)
-    return p.createMultiBody(0.0, col, vis, pos, orn)
 
 
 def _tube(x0, y0, z0, x1, y1, z1, r=None, color=None):
@@ -108,14 +78,6 @@ def _tube(x0, y0, z0, x1, y1, z1, r=None, color=None):
         s = math.sin(a / 2)
         orn = (ax*s, ay*s, 0.0, math.cos(a / 2))
     _cyl(r, length, [cx, cy, cz], orn, color)
-
-
-def _move(body_id, pos, orn=None):
-    p.resetBasePositionAndOrientation(body_id, pos, orn or _q())
-
-
-def _recolor(body_id, rgba):
-    p.changeVisualShape(body_id, -1, rgbaColor=rgba)
 
 
 WHEEL_ORN = _q(math.pi / 2, 0, 0)   # lay cylinder on its side
@@ -181,33 +143,6 @@ LAY_FIGURE_PASSIVE_LOWER_BODY_JOINTS = {
     "r_foot_joint",
 }
 LAY_FIGURE_UPPER_BODY_HOLD_FORCE = 1200.0
-
-# ── DEVICE SHAPE EDIT BLOCK ───────────────────────────────────────────────
-# Change the underarm harness shape here.
-#
-# Coordinate reminder:
-#   X = front/back, Y = left/right, Z = up/down.
-#
-# The two collision pads are the real lifting surfaces. The visual harness is
-# built around those pads, with an empty center so the torso fits inside.
-DEVICE_SHAPE = {
-    # Underarm hook/collision pad.
-    "pad_x": 0.02,             # Front/back location of both underarm pads.
-    "pad_y_offset": 0.145,     # Left/right pad center spacing from body center.
-    "pad_z_rest": 0.50,        # Pad center height when lift target is zero.
-    "pad_half_x": 0.135,       # Pad half-length front/back; larger = longer hook.
-    "pad_half_y": 0.005,       # Pad half-width left/right; larger = wider hook.
-    "pad_half_z": 0.026,       # Pad half-thickness.
-    "lift_gain": 3.35,         # Pad travel multiplier from actuator extension.
-
-    # Visual open-frame harness around the collision pads.
-    "side_y": 0.290,           # Side module spacing; larger = wider device interval.
-    "back_x": -0.055,          # Rear/back strap X position behind the torso.
-    "front_x": 0.080,          # Forward end of the shoulder guide.
-    "shoulder_z_offset": 0.185,  # Height from pad center to shoulder guide.
-    "label_z": 1.42,
-}
-
 
 # ── Network API (used when running with --serve) ───────────────────────────
 
@@ -739,173 +674,25 @@ class WheelchairLiftSim3D:
         _box([0.070, SEAT_W/2 - 0.110, 0.008],
              [fx + 0.12, 0, 0.143], color=C_FRAME_LT)
 
-    # ── Dual underarm harness lift mechanism ─────────────────────────────────
-
-    def _build_actuators(self):
-        """
-        Harness-style lift mechanism matching the front/side sketch:
-          two rectangular side actuator blocks beside the ribs
-          open center so the seated figure fits inside the device
-          hook pads under each armpit, plus rear/shoulder guide pieces
-        """
-        self._arm_ids = []
-        self._act_rod_ids = []
-        self._strap_ids = []
-        self._moving_device_parts = []   # (body_id, x, y, z_offset, orn, color_mode)
-
-        def add_moving_box(half, pos, color, z_offset, color_mode, orn=None):
-            # All harness boxes move together in Z. Store only the fixed X/Y,
-            # the Z offset from the moving pad center, and the display color mode.
-            # Black frame bars use _kbox so the figure can collide with them.
-            # Other parts stay visual-only unless they are physical hook pads.
-            if color_mode == "frame":
-                body_id = _kbox(half, pos, orn or _q(), color=color)
-                p.changeDynamics(
-                    body_id,
-                    -1,
-                    lateralFriction=1.2,
-                    spinningFriction=0.03,
-                    rollingFriction=0.01,
-                    restitution=0.0,
-                )
-            else:
-                body_id = _vbox(half, pos, orn or _q(), color=color)
-            self._moving_device_parts.append(
-                (body_id, pos[0], pos[1], z_offset, orn or _q(), color_mode)
-            )
-
-        shape = DEVICE_SHAPE
-        support_cz = shape["pad_z_rest"]
-        shoulder_z = support_cz + shape["shoulder_z_offset"]
-
-        # Build the left and right halves. "side" is +1 for one side of the body
-        # and -1 for the other, so the same dimensions stay symmetric.
-        for side in (1.0, -1.0):
-            side_y = side * shape["side_y"]
-            pad_y = side * shape["pad_y_offset"]
-            # This bridge fills only the side gap between the outer module and
-            # the armpit hook. It does not cross the torso center.
-            reach_center_y = (side_y + pad_y) / 2.0
-            reach_half_y = abs(side_y - pad_y) / 2.0
-
-            # Rib-side rectangular lift block visible in both front and side views.
-            # Tune DEVICE_SHAPE["side_y"] to move this block farther from the torso.
-            add_moving_box(
-                [0.036, 0.030, 0.150],
-                [0.025, side_y, support_cz + 0.060],
-                C_ACT_HOUSE,
-                0.060,
-                "carriage",
-            )
-            # Dark inner guide/rod drawn inside the rectangular block.
-            add_moving_box(
-                [0.010, 0.034, 0.126],
-                [0.030, side_y, support_cz + 0.065],
-                C_ACT_ROD,
-                0.065,
-                "active",
-            )
-            # Short horizontal underarm bridge from side block into the armpit pad.
-            # This makes the device look connected while preserving the open middle.
-            add_moving_box(
-                [0.018, reach_half_y, 0.018],
-                [shape["pad_x"], reach_center_y, support_cz + 0.020],
-                C_FRAME_MD,
-                0.020,
-                "active",
-            )
-            # Small outer lip makes the underarm support read like a hanging hook.
-            # It is visual-only; the actual collision hook is created in _build_sling.
-            add_moving_box(
-                [0.030, 0.012, 0.070],
-                [shape["pad_x"] - 0.012,
-                 side * (shape["pad_y_offset"] + shape["pad_half_y"] + 0.010),
-                 support_cz + 0.058],
-                C_FRAME_MD,
-                0.058,
-                "active",
-            )
-            # Back upright and shoulder cap approximate the curved shoulder strap.
-            # These pieces sit behind/over the shoulders and help match the sketch.
-            add_moving_box(
-                [0.016, 0.020, 0.150],
-                [shape["back_x"], side_y, support_cz + 0.130],
-                C_FRAME_DK,
-                0.130,
-                "frame",
-            )
-            add_moving_box(
-                [0.052, 0.020, 0.018],
-                [(shape["back_x"] + shape["front_x"]) / 2.0, side_y, shoulder_z],
-                C_FRAME_DK,
-                shape["shoulder_z_offset"],
-                "frame",
-                _q(0.0, -0.45, 0.0),
-            )
-
-        # Rear cross strap sits behind the torso; the center/front stays open.
-        # Remove or shorten this part if you want a completely separate left/right frame.
-        add_moving_box(
-            [0.016, shape["side_y"], 0.018],
-            [shape["back_x"], 0.0, support_cz + 0.145],
-            C_FRAME_DK,
-            0.145,
-            "frame",
-        )
-
-    # ── Underarm lift pads ────────────────────────────────────────────────
+    # ── Underarm harness device ────────────────────────────────────────────
 
     def _build_sling(self):
+        """Kept for backward compatibility; the harness builds the pads."""
+        self._sling_parts = []
+        self.sling_id = None
+        self._sling_edges = []
+
+    def _build_actuators(self):
+        """Build the custom underarm harness device.
+
+        The detailed geometry lives in underarm_harness.py so this simulator
+        stays readable. Read that file to change the device shape/collision.
         """
-        Underarm lift assembly:
-          • two hook-like pads sit under the user's left/right armpits
-          • the middle is empty so the torso fits inside the device
-          • no bottom sling panel or chest-crossing collision is used
-        """
-        shape = DEVICE_SHAPE
-        z0 = shape["pad_z_rest"]
-        self._sling_parts = []   # (body_id, x_offset, y_offset, z_offset)
-
-        for sy in (shape["pad_y_offset"], -shape["pad_y_offset"]):
-            # This is the physical support surface. If the figure misses the
-            # hook, adjust DEVICE_SHAPE["pad_y_offset"] and ["pad_half_y"] first.
-            side = 1.0 if sy > 0 else -1.0
-            bid = _kbox(
-                [shape["pad_half_x"], shape["pad_half_y"], shape["pad_half_z"]],
-                [shape["pad_x"], sy, z0],
-                color=C_SLING_DN,
-            )
-            p.changeDynamics(
-                bid,
-                -1,
-                lateralFriction=1.5,
-                spinningFriction=0.04,
-                rollingFriction=0.02,
-                restitution=0.0,
-            )
-            self._sling_parts.append((bid, shape["pad_x"], sy, 0.0))
-
-            # Physical outer lip: this forms the "hook" wall that prevents the
-            # upper arm from sliding away from the underarm pad during lifting.
-            lip_y = sy + side * (shape["pad_half_y"] + 0.012)
-            lip = _kbox(
-                [shape["pad_half_x"] * 0.82, 0.012, 0.074],
-                [shape["pad_x"] - 0.012, lip_y, z0 + 0.060],
-                color=C_FRAME_MD,
-            )
-            p.changeDynamics(
-                lip,
-                -1,
-                lateralFriction=1.8,
-                spinningFriction=0.05,
-                rollingFriction=0.02,
-                restitution=0.0,
-            )
-            self._sling_parts.append((lip, shape["pad_x"] - 0.012, lip_y, 0.060))
-
-        # Back-compat: sling_id points to the first moving support pad.
-        self.sling_id     = self._sling_parts[0][0]
-        self._sling_edges = []   # now handled via _sling_parts
+        self.harness = UnderarmHarness().build()
+        self._moving_device_parts = self.harness.moving_visual_parts
+        self._sling_parts = self.harness.collision_parts
+        self.sling_id = self.harness.sling_id
+        self._sling_edges = []
 
     # ── GUI sliders ───────────────────────────────────────────────────────
 
@@ -924,108 +711,20 @@ class WheelchairLiftSim3D:
     # ── Static 3-D annotations ───────────────────────────────────────────
 
     def _build_labels(self):
-        title_z = DEVICE_SHAPE["label_z"]
-        p.addUserDebugText(
-            "DUAL UNDERARM HARNESS LIFT SYSTEM",
-            [0.0, 0.0, title_z],
-            textColorRGB=[0.90, 0.92, 0.95], textSize=1.10, lifeTime=0)
-        p.addUserDebugText(
-            "PA-14 Class  |  4-inch Stroke  |  12 / 24 V DC  |  Paired Side Modules",
-            [0.0, 0.0, title_z - 0.12],
-            textColorRGB=C_LABEL_Y, textSize=0.75, lifeTime=0)
+        self.harness.build_labels()
 
     def _build_lift_indicator(self):
         """Vertical ruler showing underarm support height range."""
-        shape = DEVICE_SHAPE
-        z_bot = shape["pad_z_rest"] + shape["pad_half_z"]
-        z_top = z_bot + ACT_STROKE * shape["lift_gain"]
-        rx    = RULER_X
-
-        p.addUserDebugLine([rx, 0, z_bot], [rx, 0, z_top],
-                           C_RULER, lineWidth=3, lifeTime=0)
-
-        total_rise_in = (z_top - z_bot) * 39.37   # metres -> inches
-        for frac, label in ((0.0,  "0%  (seated)"),
-                             (0.25, "25%"),
-                             (0.50, "50%"),
-                             (0.75, "75%"),
-                             (1.0,  f"100% ({total_rise_in:.1f} in)")):
-            zt = z_bot + frac * (z_top - z_bot)
-            p.addUserDebugLine([rx - 0.016, 0, zt], [rx + 0.016, 0, zt],
-                               C_RULER, lineWidth=2, lifeTime=0)
-            p.addUserDebugText(label, [rx + 0.022, 0, zt],
-                               textColorRGB=C_RULER, textSize=0.62, lifeTime=0)
+        self.harness.build_lift_indicator()
 
     # ── Per-frame visual updates ──────────────────────────────────────────
 
     def _update_visuals(self, ext: float, stalled: bool,
                         overloaded: bool, at_target: bool,
                         force_per_act: float):
-        # ── Colour state ───────────────────────────────────────────────
-        if stalled or overloaded:
-            arm_c, sling_c, arr_c = C_ACT_DEAD, C_SLING_DN, [0.95, 0.15, 0.10]
-        elif at_target and ext > 0.002:
-            arm_c, sling_c, arr_c = C_ACT_OK,   C_SLING_UP, [0.18, 0.90, 0.30]
-        elif ext > ACT_STROKE * 0.72:
-            arm_c, sling_c, arr_c = C_ACT_WARN,  C_SLING_DN, [0.95, 0.70, 0.10]
-        elif ext > 0.002:
-            arm_c, sling_c, arr_c = C_ACT_OK,   C_SLING_DN, [0.18, 0.90, 0.30]
-        else:
-            arm_c, sling_c, arr_c = C_ACT_ROD,  C_SLING_DN, [0.55, 0.55, 0.60]
-
-        t = ext / max(ACT_STROKE, 1e-9)
-        # The harness yoke uses a linkage gain so the supports can start low,
-        # then rise into the armpit area as the actuator extends.
-        shape = DEVICE_SHAPE
-        support_top_z = shape["pad_z_rest"] + shape["pad_half_z"] + ext * shape["lift_gain"]
-        support_cz    = support_top_z - shape["pad_half_z"]
-
-        # Move every visual harness part to the same lift height as the pads.
-        # X/Y stay fixed so the device keeps its open frame shape while rising.
-        for body_id, x, y, z_offset, orn, color_mode in self._moving_device_parts:
-            _move(body_id, [x, y, support_cz + z_offset], orn)
-            if color_mode == "active":
-                _recolor(body_id, arm_c)
-            elif color_mode == "strap":
-                _recolor(body_id, C_TIE)
-            elif color_mode == "frame":
-                _recolor(body_id, C_FRAME_DK)
-            else:
-                _recolor(body_id, C_ACT_HOUSE)
-
-        # Debug arrows show the lift force direction from each armpit hook.
-        for i, sy in enumerate((shape["pad_y_offset"], -shape["pad_y_offset"])):
-            base = [shape["pad_x"], sy, support_top_z + 0.010]
-            tip  = [shape["pad_x"], sy, support_top_z + min(0.30, force_per_act / 100.0 * 0.05)]
-            key  = f'arr{i}'
-            if key in self._arrows:
-                p.addUserDebugLine(base, tip, arr_c, lineWidth=4,
-                                   replaceItemUniqueId=self._arrows[key])
-            else:
-                self._arrows[key] = p.addUserDebugLine(
-                    base, tip, arr_c, lineWidth=4, lifeTime=0)
-
-        # ── Underarm support pads ──────────────────────────────────────
-        # These are the two collision bodies that actually contact and lift the figure.
-        for bid, ox, oy, oz in self._sling_parts:
-            _move(bid, [ox, oy, support_cz + oz])
-            _recolor(bid, sling_c)
-
-        # ── Lift indicator (ruler pointer) ─────────────────────────────
-        # Map support rise to ruler: support_top_z at rest -> z_bot, at full -> z_top
-        z_bot = shape["pad_z_rest"] + shape["pad_half_z"]
-        z_top = z_bot + ACT_STROKE * shape["lift_gain"]
-        z_ind = z_bot + t * (z_top - z_bot)
-        rx = RULER_X
-        ind_from = [rx, 0, z_ind]
-        ind_to   = [rx - 0.032, 0, z_ind]
-        if self._ind_line_id >= 0:
-            self._ind_line_id = p.addUserDebugLine(
-                ind_from, ind_to, [1.0, 0.85, 0.0], lineWidth=5,
-                replaceItemUniqueId=self._ind_line_id, lifeTime=0)
-        else:
-            self._ind_line_id = p.addUserDebugLine(
-                ind_from, ind_to, [1.0, 0.85, 0.0], lineWidth=5, lifeTime=0)
+        self.harness.update(ext, stalled, overloaded, at_target, force_per_act)
+        self.harness.update_indicator(ext)
+        self._ind_line_id = self.harness.indicator_line_id
 
     # ── Main run loop ─────────────────────────────────────────────────────
 
