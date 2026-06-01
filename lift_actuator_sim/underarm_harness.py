@@ -44,7 +44,7 @@ DEVICE_SHAPE = {
     # Move the whole device without changing its shape.
     # X = front/back, Y = left/right, Z = up/down.
     # Example: [0.05, 0.00, 0.02] moves the device forward and slightly up.
-    "offset_xyz": [0.0, 0.0, 0.1],
+    "offset_xyz": [0.0, 0.0, 0.3],
 
     # Underarm hook/collision pad.
     "pad_x": 0.02,             # Front/back location of both underarm pads.

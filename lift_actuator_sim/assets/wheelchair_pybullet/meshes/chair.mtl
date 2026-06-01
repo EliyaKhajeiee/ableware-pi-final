@@ -25,6 +25,7 @@ newmtl chair_seat_blue
 Ns 250.000000
 Ka 0.120000 0.260000 0.820000
 Kd 0.120000 0.260000 0.820000
+map_Kd chair_seat_blue_vinyl_texture.png
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000

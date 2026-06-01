@@ -38,6 +38,13 @@ async def _startup() -> None:
     asyncio.create_task(_state_poll_loop())
 
 
+@app.post("/command")
+async def post_command(msg: CommandMessage) -> dict[str, str]:
+    """Accept HTTP commands and forward them to the simulator."""
+    await route_command(msg)
+    return {"status": "ok", "command": msg.command.upper()}
+
+
 @app.websocket("/ws/pi")
 async def ws_pi(ws: WebSocket) -> None:
     manager = get_manager()

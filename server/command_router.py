@@ -13,7 +13,7 @@ from server.ws_manager import get_manager
 
 logger = logging.getLogger(__name__)
 
-SIM_URL = os.environ.get("SIM_URL", "http://localhost:8001")
+SIM_URL = os.environ.get("SIM_URL", "http://127.0.0.1:8001")
 
 _VALID_COMMANDS = {"START", "STOP", "UP", "DOWN", "LEFT", "RIGHT"}
 
@@ -30,7 +30,7 @@ async def route_command(msg: CommandMessage) -> None:
 
     # Forward to simulation stub
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             resp = await client.post(f"{SIM_URL}/command", json={"command": cmd})
             resp.raise_for_status()
     except Exception as exc:
@@ -46,7 +46,7 @@ async def route_command(msg: CommandMessage) -> None:
 
 async def _fetch_sim_state() -> Optional[SimulationState]:
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             resp = await client.get(f"{SIM_URL}/state")
             resp.raise_for_status()
             return SimulationState(**resp.json())
