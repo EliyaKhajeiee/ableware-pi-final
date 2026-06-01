@@ -14,6 +14,7 @@ class AppState:
         self.simulation_state: SimulationState = SimulationState()
         self.history: Deque[HistoryEntry] = deque(maxlen=50)
         self.pi_connected: bool = False
+        self.sim_connected: bool = False
 
     def record_command(self, command: str, source: str, timestamp: float) -> None:
         self.last_command = command

@@ -38,6 +38,7 @@ class StateUpdate(BaseModel):
     simulation_state: SimulationState = Field(default_factory=SimulationState)
     command_history: List[HistoryEntry] = Field(default_factory=list)
     pi_connected: bool = False
+    sim_connected: bool = False
 
 
 class HealthResponse(BaseModel):

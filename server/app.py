@@ -30,7 +30,7 @@ async def _state_poll_loop() -> None:
         sim_state = await _fetch_sim_state()
         if sim_state:
             get_state().update_sim_state(sim_state)
-            await _broadcast_state()
+        await _broadcast_state()
 
 
 @app.on_event("startup")

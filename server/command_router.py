@@ -33,13 +33,16 @@ async def route_command(msg: CommandMessage) -> None:
         async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             resp = await client.post(f"{SIM_URL}/command", json={"command": cmd})
             resp.raise_for_status()
+        app_state.sim_connected = True
     except Exception as exc:
         logger.warning("Sim stub unreachable: %s", exc)
+        app_state.sim_connected = False
 
     # Fetch updated sim state
     sim_state = await _fetch_sim_state()
     if sim_state:
         app_state.update_sim_state(sim_state)
+        app_state.sim_connected = True
 
     await _broadcast_state()
 
@@ -49,9 +52,11 @@ async def _fetch_sim_state() -> Optional[SimulationState]:
         async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             resp = await client.get(f"{SIM_URL}/state")
             resp.raise_for_status()
+            get_state().sim_connected = True
             return SimulationState(**resp.json())
     except Exception as exc:
         logger.warning("Sim state fetch failed: %s", exc)
+        get_state().sim_connected = False
         return None
 
 
@@ -64,5 +69,6 @@ async def _broadcast_state() -> None:
         simulation_state=app_state.simulation_state,
         command_history=list(app_state.history),
         pi_connected=manager.pi_connected,
+        sim_connected=app_state.sim_connected,
     )
     await manager.broadcast_to_dashboards(update.model_dump_json())
