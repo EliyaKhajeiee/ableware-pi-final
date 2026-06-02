@@ -42,6 +42,12 @@ from UI.interactive_screen_ui import (
     update_interactive_live,
 )
 
+from UI.Serve_screen_ui import (
+    show_Serve_screen as show_serve_live_screen,
+    create_serve_live,
+    update_serve_live
+)
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pybullet as p
@@ -907,6 +913,8 @@ class WheelchairLiftSim3D:
             "speed": 1.0,
         }
 
+        last_event_text = "[serve] Waiting for commands from Ableware Hub..."
+
         initial_ext = (self.act_L.position + self.act_R.position) / 2.0
         initial_state = {
             "user_mass": self.load.mass * 2.0,
@@ -921,11 +929,12 @@ class WheelchairLiftSim3D:
             "target_position": self.ctrl.target_position,
             "target": self.ctrl.target_position / max(ACT_STROKE, 1e-9),
             "speed": 1.0,
+            "event_text": last_event_text,
         }
 
         try:
-            show_interactive_live_screen()
-            with create_interactive_live(initial_state, refresh_per_second=10) as live:
+            show_serve_live_screen()
+            with create_serve_live(initial_state, refresh_per_second=10) as live:
                 with KeyReader() as key_reader:
                     while p.isConnected():
                         t0 = time.perf_counter()
@@ -943,21 +952,21 @@ class WheelchairLiftSim3D:
                                     new_target = min(self.ctrl.target_position + STEP_SIZE, ACT_STROKE)
                                     self.ctrl.set_target_position(new_target)
                                     ctrl_state["target"] = new_target / ACT_STROKE
-                                    print(f"[serve] UP  → target {new_target*1000:.1f} mm")
+                                    last_event_text = f"[serve] UP  → target {new_target*1000:.1f} mm"
                                 elif cmd == 'DOWN':
                                     new_target = max(self.ctrl.target_position - STEP_SIZE, 0.0)
                                     self.ctrl.set_target_position(new_target)
                                     ctrl_state["target"] = new_target / ACT_STROKE
-                                    print(f"[serve] DOWN → target {new_target*1000:.1f} mm")
+                                    last_event_text = f"[serve] DOWN → target {new_target*1000:.1f} mm"
                                 elif cmd == 'START':
                                     self.ctrl.reset_emergency_stop()
                                     self.act_L.reset_emergency_stop()
                                     self.act_R.reset_emergency_stop()
-                                    print("[serve] START — e-stop cleared")
+                                    last_event_text = "[serve] START — e-stop cleared"
                                 elif cmd == 'STOP':
                                     self.ctrl.set_target_position(current_pos)
                                     ctrl_state["target"] = current_pos / max(ACT_STROKE, 1e-9)
-                                    print(f"[serve] STOP — frozen at {current_pos*1000:.1f} mm")
+                                    last_event_text = f"[serve] STOP — frozen at {current_pos*1000:.1f} mm"
                                 _cmd_queue.task_done()
 
                         for ch in key_reader.poll():
@@ -1049,7 +1058,7 @@ class WheelchairLiftSim3D:
                         if step % RENDER_EVERY == 0:
                             self._update_visuals(ext, stalled, overloaded, at_target, force_per_act=req_force)
 
-                        update_interactive_live(
+                        update_serve_live(
                             live,
                             {
                                 "user_mass": user_mass,
@@ -1064,6 +1073,7 @@ class WheelchairLiftSim3D:
                                 "target_position": self.ctrl.target_position,
                                 "target": ctrl_state["target"],
                                 "speed": ctrl_state["speed"],
+                                "event_text": last_event_text,
                             },
                         )
 

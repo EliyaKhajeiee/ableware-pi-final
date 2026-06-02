@@ -8,6 +8,7 @@ from .Demo_screen_ui import (
     update_demo_live,
 )
 from .interactive_screen_ui import build_control_panel, show_interactive_screen
+from .Serve_screen_ui import show_Serve_screen
 
 __all__ = [
     "show_title",
@@ -21,4 +22,5 @@ __all__ = [
     "update_demo_live",
     "build_control_panel",
     "show_interactive_screen",
+    "show_Serve_screen",
 ]
