@@ -43,6 +43,7 @@ def show_Serve_screen() -> None:
     console.print(layout)
 
 def create_serve_live(initial_state: dict, refresh_per_second: int = 10) -> Live:
+    global last_event
     hud_panel = build_serve_live_panel(
         user_mass=initial_state["user_mass"],
         ext_m=initial_state["ext_m"],
@@ -67,9 +68,12 @@ def create_serve_live(initial_state: dict, refresh_per_second: int = 10) -> Live
             }
         )
     )
+    last_event = initial_state.get("event_text", "")
+    layout["footer"].update(build_serve_event_panel(last_event))
     return Live(layout, refresh_per_second=refresh_per_second, transient=False)
 
 def update_serve_live(live: Live, state: dict) -> None:
+    global last_event
     hud_panel  = build_serve_live_panel(
         user_mass=state["user_mass"],
         ext_m=state["ext_m"],
@@ -95,8 +99,10 @@ def update_serve_live(live: Live, state: dict) -> None:
         )
     )
 
-    if last_event is not state.get("event_text", ""):
-        event_panel = build_serve_event_panel(state.get("event_text", ""))
+    next_event = state.get("event_text", "")
+    if last_event != next_event:
+        last_event = next_event
+        event_panel = build_serve_event_panel(next_event)
         layout["footer"].update(event_panel)
 
     live.update(layout, refresh=True)

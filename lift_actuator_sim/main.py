@@ -31,6 +31,7 @@ def _run_serve(port: int = 8001) -> None:
     """Start the HTTP API and run the interactive loop with hub control."""
     sim = WheelchairLiftSim3D()
     _sim_module_ref._sim_ref = sim
+    _sim_module_ref._serve_api_port = port
 
     api_server = HTTPServer(('', port), _SimAPIHandler)
     api_thread = threading.Thread(target=api_server.serve_forever, daemon=True)

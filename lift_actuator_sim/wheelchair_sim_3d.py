@@ -952,21 +952,25 @@ class WheelchairLiftSim3D:
                                     new_target = min(self.ctrl.target_position + STEP_SIZE, ACT_STROKE)
                                     self.ctrl.set_target_position(new_target)
                                     ctrl_state["target"] = new_target / ACT_STROKE
-                                    last_event_text = f"[serve] UP  → target {new_target*1000:.1f} mm"
+                                    last_event_text = f"Latest command: UP  -> target {new_target*1000:.1f} mm"
                                 elif cmd == 'DOWN':
                                     new_target = max(self.ctrl.target_position - STEP_SIZE, 0.0)
                                     self.ctrl.set_target_position(new_target)
                                     ctrl_state["target"] = new_target / ACT_STROKE
-                                    last_event_text = f"[serve] DOWN → target {new_target*1000:.1f} mm"
+                                    last_event_text = f"Latest command: DOWN -> target {new_target*1000:.1f} mm"
                                 elif cmd == 'START':
                                     self.ctrl.reset_emergency_stop()
                                     self.act_L.reset_emergency_stop()
                                     self.act_R.reset_emergency_stop()
-                                    last_event_text = "[serve] START — e-stop cleared"
+                                    last_event_text = "Latest command: START - e-stop cleared"
                                 elif cmd == 'STOP':
                                     self.ctrl.set_target_position(current_pos)
                                     ctrl_state["target"] = current_pos / max(ACT_STROKE, 1e-9)
-                                    last_event_text = f"[serve] STOP — frozen at {current_pos*1000:.1f} mm"
+                                    last_event_text = f"Latest command: STOP - frozen at {current_pos*1000:.1f} mm"
+                                elif cmd in {'LEFT', 'RIGHT'}:
+                                    last_event_text = f"Latest command: {cmd} - tilt not implemented"
+                                else:
+                                    last_event_text = f"Latest command: {cmd} - ignored"
                                 _cmd_queue.task_done()
 
                         for ch in key_reader.poll():
