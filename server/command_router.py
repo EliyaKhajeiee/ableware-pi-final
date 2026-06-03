@@ -44,6 +44,7 @@ async def route_command(msg: CommandMessage) -> None:
     # Send to Arduino (hardware)
     arduino = get_arduino()
     if arduino and arduino.connected:
+        logger.warning("Arduino connected — sending %s", cmd)
         if cmd == "UP":
             arduino.up()
             app_state.position_steps += 1
@@ -54,6 +55,9 @@ async def route_command(msg: CommandMessage) -> None:
             arduino.emergency_stop()
         elif cmd == "START":
             arduino.resume()
+    else:
+        logger.warning("Arduino NOT connected — command %s dropped (arduino=%s connected=%s)",
+                       cmd, arduino, arduino.connected if arduino else "N/A")
 
     # Forward to simulation stub
     try:

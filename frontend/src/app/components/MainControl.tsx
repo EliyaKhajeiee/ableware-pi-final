@@ -261,7 +261,7 @@ export function MainControl() {
           </Button>
           <Button
             onClick={() => sendCommand('UP')}
-            disabled={!hubConnected || !simConnected || isEmergency}
+            disabled={!hubConnected || isEmergency}
             variant="outline"
             className="h-14 col-span-1"
             size="lg"
@@ -271,7 +271,7 @@ export function MainControl() {
           <div />
           <Button
             onClick={() => sendCommand('DOWN')}
-            disabled={!hubConnected || !simConnected || isEmergency}
+            disabled={!hubConnected || isEmergency}
             variant="outline"
             className="h-14 col-span-1"
             size="lg"
@@ -280,7 +280,7 @@ export function MainControl() {
           </Button>
           <Button
             onClick={() => sendCommand('LEFT')}
-            disabled={!hubConnected || !simConnected || isEmergency}
+            disabled={!hubConnected || isEmergency}
             variant="outline"
             className="h-14"
             size="lg"
@@ -290,7 +290,7 @@ export function MainControl() {
           <div />
           <Button
             onClick={() => sendCommand('RIGHT')}
-            disabled={!hubConnected || !simConnected || isEmergency}
+            disabled={!hubConnected || isEmergency}
             variant="outline"
             className="h-14"
             size="lg"
