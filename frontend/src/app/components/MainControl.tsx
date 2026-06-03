@@ -45,6 +45,8 @@ interface StateUpdate {
   command_history: HistoryEntry[];
   pi_connected: boolean;
   sim_connected: boolean;
+  arduino_connected: boolean;
+  position_steps: number;
 }
 
 // ---- Constants -----------------------------------------------------
@@ -61,6 +63,8 @@ export function MainControl() {
   const [hubConnected, setHubConnected] = useState(false);
   const [piConnected, setPiConnected] = useState(false);
   const [simConnected, setSimConnected] = useState(false);
+  const [arduinoConnected, setArduinoConnected] = useState(false);
+  const [positionSteps, setPositionSteps] = useState(0);
   const [simState, setSimState] = useState<SimulationState | null>(null);
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const [lastSource, setLastSource] = useState<string | null>(null);
@@ -89,6 +93,8 @@ export function MainControl() {
           setSimState(data.simulation_state);
           setPiConnected(data.pi_connected);
           setSimConnected(data.sim_connected ?? false);
+          setArduinoConnected(data.arduino_connected ?? false);
+          setPositionSteps(data.position_steps ?? 0);
           setLastCommand(data.last_command);
           setLastSource(data.last_command_source);
           setHistory(data.command_history.slice(0, 10));
@@ -169,6 +175,12 @@ export function MainControl() {
                 Sim
               </div>
             </Badge>
+            <Badge className={`${arduinoConnected ? 'bg-blue-500' : 'bg-gray-500'} text-white px-3 py-1`}>
+              <div className="flex items-center gap-1">
+                {arduinoConnected ? <Activity className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                Arduino
+              </div>
+            </Badge>
           </div>
         </div>
         <p className="text-sm text-gray-500">Hub: {HUB_WS_URL}</p>
@@ -232,7 +244,12 @@ export function MainControl() {
 
       {/* Manual controls */}
       <Card className="p-6">
-        <h2 className="text-2xl font-semibold mb-4">Manual Controls</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-semibold">Manual Controls</h2>
+          <Badge className="bg-gray-700 text-white px-3 py-1 text-base">
+            Step {positionSteps} / 7
+          </Badge>
+        </div>
         <div className="grid grid-cols-3 gap-3">
           <Button
             onClick={() => sendCommand('START')}
