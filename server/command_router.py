@@ -7,6 +7,7 @@ from typing import Optional
 
 import httpx
 
+from server.arduino_serial import get_arduino
 from server.models import CommandMessage, SimulationState, StateUpdate
 from server.state import get_state
 from server.ws_manager import get_manager
@@ -17,16 +18,42 @@ SIM_URL = os.environ.get("SIM_URL", "http://127.0.0.1:8001")
 
 _VALID_COMMANDS = {"START", "STOP", "UP", "DOWN", "LEFT", "RIGHT"}
 
+_MIN_STEPS = 0
+_MAX_STEPS = 7
+
 
 async def route_command(msg: CommandMessage) -> None:
-    """Validate command → forward to sim stub → update state → broadcast."""
+    """Validate command → send to Arduino + sim → broadcast state."""
     cmd = msg.command.upper()
     if cmd not in _VALID_COMMANDS:
         logger.warning("Ignoring unknown command: %s", cmd)
         return
 
     app_state = get_state()
+
+    if cmd == "DOWN" and app_state.position_steps <= _MIN_STEPS:
+        logger.info("At floor — blocking DOWN")
+        return
+
+    if cmd == "UP" and app_state.position_steps >= _MAX_STEPS:
+        logger.info("At ceiling — blocking UP")
+        return
+
     app_state.record_command(cmd, msg.source, msg.timestamp or time.time())
+
+    # Send to Arduino (hardware)
+    arduino = get_arduino()
+    if arduino and arduino.connected:
+        if cmd == "UP":
+            arduino.up()
+            app_state.position_steps += 1
+        elif cmd == "DOWN":
+            arduino.down()
+            app_state.position_steps -= 1
+        elif cmd == "STOP":
+            arduino.emergency_stop()
+        elif cmd == "START":
+            arduino.resume()
 
     # Forward to simulation stub
     try:
@@ -63,6 +90,7 @@ async def _fetch_sim_state() -> Optional[SimulationState]:
 async def _broadcast_state() -> None:
     app_state = get_state()
     manager = get_manager()
+    arduino = get_arduino()
     update = StateUpdate(
         last_command=app_state.last_command,
         last_command_source=app_state.last_command_source,
@@ -70,5 +98,7 @@ async def _broadcast_state() -> None:
         command_history=list(app_state.history),
         pi_connected=manager.pi_connected,
         sim_connected=app_state.sim_connected,
+        arduino_connected=arduino.connected if arduino else False,
+        position_steps=app_state.position_steps,
     )
     await manager.broadcast_to_dashboards(update.model_dump_json())

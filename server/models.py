@@ -39,6 +39,8 @@ class StateUpdate(BaseModel):
     command_history: List[HistoryEntry] = Field(default_factory=list)
     pi_connected: bool = False
     sim_connected: bool = False
+    arduino_connected: bool = False
+    position_steps: int = 0
 
 
 class HealthResponse(BaseModel):
