@@ -38,7 +38,7 @@ def show_Serve_screen() -> None:
     )
     layout["left_panel"].split_column(
         Layout(name="note", renderable=_show_note(), ratio=2),
-        Layout(name="control_panel", renderable=None, ratio=1),
+        Layout(name="Thanks to", renderable=None, ratio=1),
     )
     console.print(layout)
 
@@ -57,16 +57,8 @@ def create_serve_live(initial_state: dict, refresh_per_second: int = 10) -> Live
         target_position=initial_state.get("target_position", 0.0),
     )
     layout["right_panel"].update(hud_panel)
-    layout["control_panel"].update(
-        build_control_panel(
-            {
-                "weight": initial_state.get("user_mass", 80.0),
-                "target": initial_state.get("target", 0.0),
-                "force": initial_state.get("cap_force_each", 1000.0),
-                "volts": initial_state.get("supply_v", 12.0),
-                "speed": initial_state.get("speed", 1.0),
-            }
-        )
+    layout["Thanks to"].update(
+        build_control_panel()
     )
     last_event = initial_state.get("event_text", "")
     layout["footer"].update(build_serve_event_panel(last_event))
@@ -87,17 +79,6 @@ def update_serve_live(live: Live, state: dict) -> None:
         target_position=state.get("target_position", 0.0),
     )
     layout["right_panel"].update(hud_panel)
-    layout["control_panel"].update(
-        build_control_panel(
-            {
-                "weight": state.get("user_mass", 80.0),
-                "target": state.get("target", 0.0),
-                "force": state.get("cap_force_each", 1000.0),
-                "volts": state.get("supply_v", 12.0),
-                "speed": state.get("speed", 1.0),
-            }
-        )
-    )
 
     next_event = state.get("event_text", "")
     if last_event != next_event:
@@ -117,17 +98,16 @@ def build_serve_event_panel(event_text: str) -> Panel:
     )
 
 
-def build_control_panel(state: dict) -> Panel:
-    t = Table(show_header=True, header_style="bold cyan", expand=True)
-    t.add_column("Control")
-    t.add_column("Value(control keys)", justify="right")
-    t.add_row("User Weight (kg)", f"{state['weight']:.1f}   (j/k)")
-    t.add_row("Lift Target (0-1)", f"{state['target']:.3f}   (n/m)")
-    t.add_row("Actuator Force (N)", f"{state['force']:.0f}   (u/i)")
-    t.add_row("Supply Voltage (V)", f"{state['volts']:.0f}   (v/b)")
-    t.add_row("Sim Speed", f"{state['speed']:.2f}   (1/2)")
-    t.add_row("quit", "Press [bold yellow]q[/bold yellow] to quit")
-    return Panel(t, title="CONTROL PANEL", border_style="green")
+def build_control_panel() -> Panel:
+    return Panel.fit(
+        Text(
+            "- Wheelchair\" (https://skfb.ly/6ZXYJ) by imnuts000 is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/)."
+            + "\n"
+            +"- Wooden Mannequin (Lay Figure) - Rigged\" (https://skfb.ly/oyxpC) by James Wright is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/)."
+        ),
+        title="Thank you for modeling",
+        border_style="green"
+    )
 
 
 def build_serve_live_panel(
