@@ -116,8 +116,8 @@ export function MainControl() {
         <div className="flex items-center gap-4">
           <div className="w-2 h-8 bg-sky-400 rounded-sm" style={{ boxShadow: '0 0 12px #38bdf8, 0 0 24px #38bdf840' }} />
           <div>
-            <div className="text-2xl font-bold tracking-[0.15em] text-white uppercase">Ableware</div>
-            <div className="text-[10px] tracking-[0.3em] text-slate-500 uppercase mt-0.5">Assistive Lift Control System</div>
+            <div className="text-4xl font-bold tracking-[0.15em] text-white uppercase">Ableware</div>
+            <div className="text-xs tracking-[0.3em] text-slate-400 uppercase mt-1">Assistive Lift Control System</div>
           </div>
         </div>
 
@@ -218,21 +218,25 @@ export function MainControl() {
             </div>
           </div>
 
-          {/* Metrics grid */}
-          <div className="flex-1 space-y-0">
-            <div className="text-[10px] tracking-[0.35em] uppercase text-slate-600 mb-4">Telemetry</div>
+          {/* Metrics boxes */}
+          <div className="flex-1 grid grid-cols-2 gap-3">
             {[
               { label: 'Velocity', value: simState ? (simState.velocity * 1000).toFixed(1) : '—', unit: 'mm/s' },
               { label: 'PWM Output', value: simState ? simState.pwm.toFixed(3) : '—', unit: '' },
               { label: 'Target', value: simState ? (simState.target_position * 1000).toFixed(1) : '—', unit: 'mm' },
-              { label: 'Stall', value: simState?.stalled ? 'DETECTED' : 'Clear', unit: '' },
-              { label: 'Last Cmd', value: lastCommand || '—', unit: lastCommand ? `via ${lastSource}` : '' },
-            ].map(({ label, value, unit }) => (
-              <div key={label} className="flex items-center justify-between py-3 border-b border-white/[0.04]">
-                <span className="text-xs tracking-[0.15em] uppercase text-slate-300 font-semibold">{label}</span>
-                <span className="text-base text-white font-bold">
+              { label: 'Stall', value: simState?.stalled ? 'DETECTED' : 'Clear', unit: '', alert: simState?.stalled },
+              { label: 'Last Cmd', value: lastCommand || '—', unit: '' },
+              { label: 'Source', value: lastSource || '—', unit: '' },
+            ].map(({ label, value, unit, alert }) => (
+              <div
+                key={label}
+                className="rounded-xl p-4 flex flex-col gap-2"
+                style={{ backgroundColor: '#0d0d18', border: '1px solid #1e1e35' }}
+              >
+                <span className="text-xs tracking-[0.2em] uppercase font-bold text-slate-300">{label}</span>
+                <span className="text-2xl font-bold leading-none" style={{ color: alert ? '#f87171' : '#ffffff' }}>
                   {value}
-                  {unit && <span className="text-slate-500 text-sm font-normal ml-1.5">{unit}</span>}
+                  {unit && <span className="text-slate-500 text-sm font-normal ml-1">{unit}</span>}
                 </span>
               </div>
             ))}
