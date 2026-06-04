@@ -149,142 +149,92 @@ export function MainControl() {
       <div className="flex-1 grid grid-cols-5 min-h-0">
 
         {/* ── Left: Telemetry (2/5) ───────────────────────────── */}
-        <div className="col-span-2 flex flex-col gap-0 border-r border-white/[0.06] p-10">
+        <div className="col-span-2 flex flex-col border-r border-white/[0.06] p-6 gap-3">
 
-          {/* System status pill */}
-          <div className="mb-8">
-            <div
-              className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs tracking-[0.2em] uppercase border transition-all duration-500 ${
-                isEmergency
-                  ? 'border-red-500/50 bg-red-500/10 text-red-400'
-                  : isMoving
-                  ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
-                  : 'border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-400'
-              }`}
-              style={isEmergency ? { boxShadow: '0 0 20px #ef444420' } : isMoving ? { boxShadow: '0 0 20px #f59e0b20' } : {}}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full ${isMoving && !isEmergency ? 'animate-pulse' : ''}`}
-                style={{ backgroundColor: isEmergency ? '#f87171' : isMoving ? '#fbbf24' : '#4ade80' }} />
-              {isEmergency ? 'Emergency Stop Active' : isMoving ? 'Actuator Moving' : 'System Stable'}
+          {/* Position — hero metric */}
+          <div className="rounded-2xl p-5" style={{ backgroundColor: '#0a0f1a', border: '1px solid #0e2040' }}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm tracking-[0.2em] uppercase font-bold text-sky-400">Lift Position</span>
+              <span className="text-sm font-bold text-slate-400">{simState ? (simState.position * 1000).toFixed(1) : '0.0'} mm</span>
+            </div>
+            <div className="flex items-end gap-2 mb-3">
+              <span className="font-bold text-white leading-none" style={{ fontSize: '5rem', textShadow: '0 0 40px #38bdf860' }}>{positionPct}</span>
+              <span className="text-4xl text-sky-500 font-bold mb-2">%</span>
+            </div>
+            <div className="h-3 bg-white/[0.05] rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${positionPct}%`, background: 'linear-gradient(90deg, #0369a1, #38bdf8)', boxShadow: '0 0 10px #38bdf8' }} />
             </div>
           </div>
 
-          {/* Big position number */}
-          <div className="mb-2">
-            <div className="text-xs tracking-[0.25em] uppercase text-slate-300 font-semibold mb-3">Lift Position</div>
-            <div className="flex items-end gap-3 mb-5">
-              <span
-                className="text-8xl font-bold text-white leading-none"
-                style={{ textShadow: '0 0 40px #38bdf840' }}
-              >
-                {positionPct}
-              </span>
-              <span className="text-3xl text-slate-400 mb-2">%</span>
-              <span className="text-slate-500 text-base mb-2 ml-1">
-                {simState ? (simState.position * 1000).toFixed(1) : '0.0'} mm
-              </span>
-            </div>
-
-            {/* Position bar */}
-            <div className="relative h-2 bg-white/[0.04] rounded-full overflow-hidden">
-              <div
-                className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
-                style={{
-                  width: `${positionPct}%`,
-                  background: 'linear-gradient(90deg, #0ea5e9, #38bdf8)',
-                  boxShadow: positionPct > 0 ? '0 0 12px #38bdf8' : 'none',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Step indicator */}
-          <div className="mb-8">
+          {/* Step position */}
+          <div className="rounded-2xl p-5" style={{ backgroundColor: '#0d0a1a', border: '1px solid #1e0e40' }}>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs tracking-[0.25em] uppercase text-slate-300 font-semibold">Step Position</span>
-              <span className="text-sm text-white font-bold">{positionSteps}<span className="text-slate-600 font-normal"> / 7</span></span>
+              <span className="text-sm tracking-[0.2em] uppercase font-bold text-violet-400">Step Position</span>
+              <span className="text-3xl font-bold text-white">{positionSteps}<span className="text-violet-500 text-xl"> / 7</span></span>
             </div>
             <div className="flex gap-2">
               {Array.from({ length: 8 }, (_, i) => (
-                <div
-                  key={i}
-                  className="flex-1 h-1.5 rounded-full transition-all duration-300"
-                  style={{
-                    backgroundColor: i < positionSteps ? '#a78bfa' : i === positionSteps ? '#7c3aed' : '#1e1e2e',
-                    boxShadow: i < positionSteps ? '0 0 6px #a78bfa80' : 'none',
-                  }}
-                />
+                <div key={i} className="flex-1 h-3 rounded-full transition-all duration-300"
+                  style={{ backgroundColor: i < positionSteps ? '#a78bfa' : '#1e1e2e', boxShadow: i < positionSteps ? '0 0 8px #a78bfa' : 'none' }} />
               ))}
             </div>
           </div>
 
-          {/* Metrics boxes */}
-          <div className="flex-1 flex flex-col gap-2">
-            {/* Velocity */}
-            <div className="flex-1 rounded-xl p-4 flex flex-col justify-between" style={{ backgroundColor: '#0a0f1a', border: '1px solid #0e2040' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs tracking-[0.2em] uppercase font-bold text-sky-400">Velocity</span>
-                <span className="text-2xl font-bold text-white">
-                  {simState ? (simState.velocity * 1000).toFixed(1) : '0.0'}
-                  <span className="text-sky-600 text-sm font-normal ml-1">mm/s</span>
-                </span>
-              </div>
-              <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(Math.abs((simState?.velocity ?? 0) * 1000) / 50 * 100, 100)}%`, background: 'linear-gradient(90deg, #0369a1, #38bdf8)', boxShadow: '0 0 8px #38bdf8' }} />
-              </div>
+          {/* Velocity */}
+          <div className="flex-1 rounded-2xl p-5 flex flex-col justify-between" style={{ backgroundColor: '#0a0f1a', border: '1px solid #0e2040' }}>
+            <span className="text-sm tracking-[0.2em] uppercase font-bold text-sky-400">Velocity</span>
+            <div className="flex items-end gap-2">
+              <span className="text-5xl font-bold text-white leading-none">{simState ? (simState.velocity * 1000).toFixed(1) : '0.0'}</span>
+              <span className="text-xl text-sky-600 font-bold mb-1">mm/s</span>
             </div>
-
-            {/* PWM */}
-            <div className="flex-1 rounded-xl p-4 flex flex-col justify-between" style={{ backgroundColor: '#0d0a1a', border: '1px solid #1e0e40' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs tracking-[0.2em] uppercase font-bold text-violet-400">PWM Output</span>
-                <span className="text-2xl font-bold text-white">
-                  {simState ? (Math.abs(simState.pwm) * 100).toFixed(0) : '0'}
-                  <span className="text-violet-600 text-sm font-normal ml-1">%</span>
-                </span>
-              </div>
-              <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(Math.abs(simState?.pwm ?? 0) * 100, 100)}%`, background: 'linear-gradient(90deg, #5b21b6, #a78bfa)', boxShadow: '0 0 8px #a78bfa' }} />
-              </div>
-            </div>
-
-            {/* Target */}
-            <div className="flex-1 rounded-xl p-4 flex flex-col justify-between" style={{ backgroundColor: '#0a1410', border: '1px solid #0e3020' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs tracking-[0.2em] uppercase font-bold text-emerald-400">Target</span>
-                <span className="text-2xl font-bold text-white">
-                  {simState ? (simState.target_position * 1000).toFixed(1) : '0.0'}
-                  <span className="text-emerald-600 text-sm font-normal ml-1">mm</span>
-                </span>
-              </div>
-              <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${positionPct}%`, background: 'linear-gradient(90deg, #065f46, #34d399)', boxShadow: '0 0 8px #34d399' }} />
-              </div>
-            </div>
-
-            {/* Stall + Last Cmd row */}
-            <div className="flex gap-2 flex-1">
-              <div className="flex-1 rounded-xl p-4 flex flex-col justify-between" style={{
-                backgroundColor: simState?.stalled ? '#1a0a0a' : '#0a0d0a',
-                border: `1px solid ${simState?.stalled ? '#5b0a0a' : '#0e200e'}`
-              }}>
-                <span className="text-xs tracking-[0.2em] uppercase font-bold" style={{ color: simState?.stalled ? '#f87171' : '#4ade80' }}>Stall</span>
-                <span className="text-xl font-bold" style={{ color: simState?.stalled ? '#f87171' : '#ffffff' }}>
-                  {simState?.stalled ? 'DETECTED' : 'Clear'}
-                </span>
-              </div>
-              <div className="flex-1 rounded-xl p-4 flex flex-col justify-between" style={{ backgroundColor: '#0a0d14', border: '1px solid #0e1530' }}>
-                <span className="text-xs tracking-[0.2em] uppercase font-bold text-amber-400">Last Cmd</span>
-                <div>
-                  <span className="text-xl font-bold text-white">{lastCommand || '—'}</span>
-                  {lastSource && <span className="text-xs text-slate-500 block mt-0.5">via {lastSource}</span>}
-                </div>
-              </div>
+            <div className="h-2 bg-white/[0.05] rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(Math.abs((simState?.velocity ?? 0) * 1000) / 50 * 100, 100)}%`, background: 'linear-gradient(90deg, #0369a1, #38bdf8)', boxShadow: '0 0 8px #38bdf8' }} />
             </div>
           </div>
+
+          {/* PWM */}
+          <div className="flex-1 rounded-2xl p-5 flex flex-col justify-between" style={{ backgroundColor: '#0d0a1a', border: '1px solid #1e0e40' }}>
+            <span className="text-sm tracking-[0.2em] uppercase font-bold text-violet-400">PWM Output</span>
+            <div className="flex items-end gap-2">
+              <span className="text-5xl font-bold text-white leading-none">{simState ? (Math.abs(simState.pwm) * 100).toFixed(0) : '0'}</span>
+              <span className="text-xl text-violet-600 font-bold mb-1">%</span>
+            </div>
+            <div className="h-2 bg-white/[0.05] rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(Math.abs(simState?.pwm ?? 0) * 100, 100)}%`, background: 'linear-gradient(90deg, #5b21b6, #a78bfa)', boxShadow: '0 0 8px #a78bfa' }} />
+            </div>
+          </div>
+
+          {/* Target */}
+          <div className="flex-1 rounded-2xl p-5 flex flex-col justify-between" style={{ backgroundColor: '#0a1410', border: '1px solid #0e3020' }}>
+            <span className="text-sm tracking-[0.2em] uppercase font-bold text-emerald-400">Target Position</span>
+            <div className="flex items-end gap-2">
+              <span className="text-5xl font-bold text-white leading-none">{simState ? (simState.target_position * 1000).toFixed(1) : '0.0'}</span>
+              <span className="text-xl text-emerald-600 font-bold mb-1">mm</span>
+            </div>
+            <div className="h-2 bg-white/[0.05] rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.round((simState?.target_position ?? 0) / ACT_STROKE * 100)}%`, background: 'linear-gradient(90deg, #065f46, #34d399)', boxShadow: '0 0 8px #34d399' }} />
+            </div>
+          </div>
+
+          {/* Stall + Last Cmd */}
+          <div className="flex gap-3">
+            <div className="flex-1 rounded-2xl p-5" style={{ backgroundColor: simState?.stalled ? '#1a0a0a' : '#0a0d0a', border: `1px solid ${simState?.stalled ? '#5b0a0a' : '#0e200e'}` }}>
+              <span className="text-sm tracking-[0.2em] uppercase font-bold block mb-2" style={{ color: simState?.stalled ? '#f87171' : '#4ade80' }}>Stall</span>
+              <span className="text-3xl font-bold" style={{ color: simState?.stalled ? '#f87171' : '#ffffff' }}>
+                {simState?.stalled ? 'FAULT' : 'Clear'}
+              </span>
+            </div>
+            <div className="flex-1 rounded-2xl p-5" style={{ backgroundColor: '#0a0d14', border: '1px solid #0e1530' }}>
+              <span className="text-sm tracking-[0.2em] uppercase font-bold text-amber-400 block mb-2">Last Cmd</span>
+              <span className="text-3xl font-bold text-white">{lastCommand || '—'}</span>
+              {lastSource && <span className="text-xs text-slate-500 block mt-1">via {lastSource}</span>}
+            </div>
+          </div>
+
         </div>
 
         {/* ── Right: Controls (3/5) ──────────────────────────── */}
