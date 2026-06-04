@@ -5,7 +5,6 @@ import threading
 import time
 from typing import Optional
 import platform
-import socket
 
 logger = logging.getLogger(__name__)
 
@@ -95,17 +94,47 @@ class ArduinoSerial:
         import glob
         current_os = platform.system()
 
-        if current_os != "Windows":
-            for pattern in ("/dev/cu.usbmodem*", "/dev/ttyUSB*", "/dev/ttyACM*"):
-                ports = sorted(glob.glob(pattern))
-                if ports:
-                    return ports[0]
-        else:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('localhost', 0))
-                # Retrieve and return the allocated port number
-                print("s: " + s.getsockname()[1])
-                return s.getsockname()[1]
+        if current_os == "Windows":
+            try:
+                from serial.tools import list_ports
+            except Exception as exc:
+                logger.warning("PySerial port listing unavailable: %s", exc)
+                return None
+
+            ports = sorted(list_ports.comports(), key=lambda port: port.device)
+            preferred_terms = (
+                "arduino",
+                "ch340",
+                "ch341",
+                "usb serial",
+                "usb-serial",
+                "cp210",
+                "ftdi",
+            )
+
+            for port in ports:
+                details = " ".join(
+                    str(value or "")
+                    for value in (
+                        port.device,
+                        port.description,
+                        port.manufacturer,
+                        port.product,
+                        port.hwid,
+                    )
+                ).lower()
+                if any(term in details for term in preferred_terms):
+                    return port.device
+
+            if ports:
+                return ports[0].device
+
+            return None
+
+        for pattern in ("/dev/cu.usbmodem*", "/dev/ttyUSB*", "/dev/ttyACM*"):
+            ports = sorted(glob.glob(pattern))
+            if ports:
+                return ports[0]
         return None
 
     def _connect_loop(self) -> None:

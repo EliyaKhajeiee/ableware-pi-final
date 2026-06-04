@@ -38,14 +38,6 @@ async def route_command(msg: CommandMessage) -> None:
 
     app_state = get_state()
 
-    if cmd == "DOWN" and app_state.position_steps <= _MIN_STEPS:
-        logger.info("At floor — blocking DOWN")
-        return
-
-    if cmd == "UP" and app_state.position_steps >= _MAX_STEPS:
-        logger.info("At ceiling — blocking UP")
-        return
-
     app_state.record_command(cmd, msg.source, msg.timestamp or time.time())
 
     # Send to Arduino (hardware)
@@ -53,17 +45,23 @@ async def route_command(msg: CommandMessage) -> None:
     if arduino and arduino.connected:
         logger.warning("Arduino connected — sending %s", cmd)
         if cmd == "UP":
-            arduino.up()
-            app_state.position_steps += 1
+            if app_state.position_steps >= _MAX_STEPS:
+                logger.info("At ceiling - skipping Arduino UP")
+            else:
+                arduino.up()
+                app_state.position_steps += 1
         elif cmd == "DOWN":
-            arduino.down()
-            app_state.position_steps -= 1
+            if app_state.position_steps <= _MIN_STEPS:
+                logger.info("At floor - skipping Arduino DOWN")
+            else:
+                arduino.down()
+                app_state.position_steps -= 1
         elif cmd == "STOP":
             arduino.emergency_stop()
         elif cmd == "START":
             arduino.resume()
     else:
-        logger.warning("Arduino NOT connected — command %s dropped (arduino=%s connected=%s)",
+        logger.warning("Arduino NOT connected - skipping hardware for %s (arduino=%s connected=%s)",
                        cmd, arduino, arduino.connected if arduino else "N/A")
 
     # Forward to the simulation API. In the normal workflow this is wheelchair_sim_3d.py --serve.
