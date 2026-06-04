@@ -6,13 +6,43 @@ Voice-controlled assistive lift system. A Raspberry Pi listens for wake word + c
 
 ## Architecture
 
+### Voice Command
+``` mermaid
+sequenceDiagram
+    participant PI
+    participant Hub(Server)
+    participant Dashboard
+    participant Simulation
+    participant Hardware Device
+    PI->>PI: Wak up word (Hey, Ableware)
+    PI->>Hub(Server): Websocket
+    Hub(Server)->>Dashboard: update Info
+    Hub(Server)->>Simulation: Send Command
+    Hub(Server)->>Hardware Device: Send Command
+    Simulation ->> Simulation: Move
+    Hardware Device ->> Hardware Device: Move
+    Simulation ->> Hub(Server): Respond
+    Hardware Device ->> Hub(Server): Respond
+    Hub(Server)->>Dashboard: update Info
 ```
-Pi (mic)
-  → wake word (OpenWakeWord)
-  → speech recognition (Vosk)
-  → WebSocket → Hub :8000
-                  → Dashboard (browser)
-                  → Simulation Stub :8001
+
+### UI Command
+``` mermaid
+sequenceDiagram
+    participant Dashboard
+    participant Hub(Server)
+    participant Simulation
+    participant Hardware Device
+    Dashboard ->> Dashboard: Push Command Button
+    Dashboard ->> Hub(Server): Send Command
+    Hub(Server)->>Dashboard: update Info
+    Hub(Server)->>Simulation: Send Command
+    Hub(Server)->>Hardware Device: Send Command
+    Simulation ->> Simulation: Move
+    Hardware Device ->> Hardware Device: Move
+    Simulation ->> Hub(Server): Respond
+    Hardware Device ->> Hub(Server): Respond
+    Hub(Server)->>Dashboard: update Info
 ```
 
 The hub is the only thing that talks to both the Pi and the simulation. The Pi and simulation never talk directly.
@@ -99,11 +129,6 @@ The hub polls `/state` every 250ms and pushes updates to the dashboard over WebS
 
 The sliders in the PyBullet window still control user weight, max force, and sim speed — they just no longer control the lift target (the hub does that).
 
-If you want to run without the PyBullet window (e.g. on a headless server), you can still use the old stub:
-```bash
-cd lift_actuator_sim && python3 -m uvicorn simulation_stub:app --port 8001
-```
-
 ---
 
 ## Config reference (`config.yaml`)
@@ -121,10 +146,10 @@ cd lift_actuator_sim && python3 -m uvicorn simulation_stub:app --port 8001
 
 ## Troubleshooting
 
-**Pi badge gray in dashboard** — Pi can't reach the hub. Check `server.ip` in `config.yaml` matches your laptop's IP. Both devices need to be on the same network.
+- [x] **Pi badge gray in dashboard** — Pi can't reach the hub. Check `server.ip` in `config.yaml` matches your laptop's IP. Both devices need to be on the same network.
 
-**Hub badge gray in dashboard** — Hub isn't running, or you're accessing the dashboard from a non-localhost address on port 5173 (Vite dev server). Use `http://localhost:8000` instead.
+- [x] **Hub badge gray in dashboard** — Hub isn't running, or you're accessing the dashboard from a non-localhost address on port 5173 (Vite dev server). Use `http://localhost:8000` instead.
 
-**"Command queued (not connected)"** on Pi — Pi recognised the command but couldn't send it. Hub isn't reachable. You'll hear an error beep.
+- [x] **"Command queued (not connected)"** on Pi — Pi recognised the command but couldn't send it. Hub isn't reachable. You'll hear an error beep.
 
-**No wake word detection** — If `models/ableware_wakeword.onnx` is missing, the system runs in bypass mode (always listening). Check the Pi logs on startup.
+- [x] **No wake word detection** — If `models/ableware_wakeword.onnx` is missing, the system runs in bypass mode (always listening). Check the Pi logs on startup.
