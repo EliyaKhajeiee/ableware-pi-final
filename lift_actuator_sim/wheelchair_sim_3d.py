@@ -953,7 +953,14 @@ class WheelchairLiftSim3D:
                                 except _queue.Empty:
                                     break
                                 current_pos = (self.act_L.position + self.act_R.position) / 2.0
-                                if cmd == 'UP':
+                                is_emergency_stopped = (
+                                    self.ctrl.emergency_stop_triggered
+                                    or self.act_L.emergency_stopped
+                                    or self.act_R.emergency_stopped
+                                )
+                                if cmd in {'UP', 'DOWN'} and is_emergency_stopped:
+                                    last_event_text = f"Latest command: {cmd} - ignored, emergency stop active"
+                                elif cmd == 'UP':
                                     new_target = min(self.ctrl.target_position + COMMAND_STEP_SIZE, ACT_STROKE)
                                     self.ctrl.set_target_position(new_target)
                                     ctrl_state["target"] = new_target / ACT_STROKE
@@ -970,8 +977,11 @@ class WheelchairLiftSim3D:
                                     last_event_text = "Latest command: START - e-stop cleared"
                                 elif cmd == 'STOP':
                                     self.ctrl.set_target_position(current_pos)
+                                    self.ctrl.emergency_stop()
+                                    self.act_L.emergency_stop()
+                                    self.act_R.emergency_stop()
                                     ctrl_state["target"] = current_pos / max(ACT_STROKE, 1e-9)
-                                    last_event_text = f"Latest command: STOP - frozen at {current_pos*1000:.1f} mm"
+                                    last_event_text = f"Latest command: STOP - emergency stop at {current_pos*1000:.1f} mm"
                                 elif cmd in {'LEFT', 'RIGHT'}:
                                     last_event_text = f"Latest command: {cmd} - tilt not implemented"
                                 else:
