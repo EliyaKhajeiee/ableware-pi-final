@@ -3,9 +3,9 @@ import { Toaster } from './components/ui/sonner';
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-[#080810] text-[#e2e8f0]">
+    <div className="min-h-screen bg-[#05050a] text-white overflow-hidden">
       <MainControl />
-      <Toaster theme="dark" />
+      <Toaster theme="dark" position="top-right" />
     </div>
   );
 }

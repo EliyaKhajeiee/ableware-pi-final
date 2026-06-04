@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronUp, ChevronDown, Power, AlertTriangle, Activity, Wifi, WifiOff, Circle } from 'lucide-react';
+import { ChevronUp, ChevronDown, Power, AlertTriangle, Activity, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ---- Protocol types ------------------------------------------------
@@ -42,31 +42,6 @@ const HUB_WS_URL =
     ? 'ws://localhost:8000/ws/dashboard'
     : `ws://${window.location.hostname}:8000/ws/dashboard`;
 
-// ---- Sub-components ------------------------------------------------
-
-function StatusDot({ active, color, label }: { active: boolean; color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className={`w-2 h-2 rounded-full transition-all duration-500 ${active ? color : 'bg-[#2a2a3a]'} ${active ? 'shadow-[0_0_6px_currentColor]' : ''}`} />
-      <span className={`text-xs font-mono tracking-widest uppercase ${active ? 'text-[#94a3b8]' : 'text-[#3a3a4a]'}`}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function MetricRow({ label, value, unit }: { label: string; value: string; unit?: string }) {
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-[#1a1a2e]">
-      <span className="text-xs font-mono tracking-widest uppercase text-[#4a5568]">{label}</span>
-      <span className="text-sm font-mono text-[#94a3b8]">
-        {value}
-        {unit && <span className="text-[#4a5568] ml-1">{unit}</span>}
-      </span>
-    </div>
-  );
-}
-
 // ---- Main component ------------------------------------------------
 
 export function MainControl() {
@@ -99,7 +74,7 @@ export function MainControl() {
           setPositionSteps(data.position_steps ?? 0);
           setLastCommand(data.last_command);
           setLastSource(data.last_command_source);
-          setHistory(data.command_history.slice(0, 8));
+          setHistory(data.command_history.slice(0, 6));
         }
       } catch { /* ignore */ }
     };
@@ -134,194 +109,251 @@ export function MainControl() {
   const isMoving = simState && !simState.at_target;
 
   return (
-    <div className="min-h-screen bg-[#080810] flex flex-col">
+    <div className="min-h-screen bg-[#05050a] flex flex-col" style={{ fontFamily: "'SF Mono', 'JetBrains Mono', 'Fira Code', monospace" }}>
 
-      {/* ── Header ───────────────────────────────────────────── */}
-      <header className="border-b border-[#1a1a2e] px-8 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-mono font-bold tracking-[0.2em] uppercase text-[#e2e8f0]">
-            Ableware
-          </h1>
-          <p className="text-xs font-mono text-[#3a3a5a] tracking-widest mt-0.5">
-            ASSISTIVE LIFT CONTROL SYSTEM
-          </p>
+      {/* ── Top bar ──────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-10 py-5 border-b border-white/[0.06]">
+        <div className="flex items-center gap-4">
+          <div className="w-2 h-8 bg-sky-400 rounded-sm" style={{ boxShadow: '0 0 12px #38bdf8, 0 0 24px #38bdf840' }} />
+          <div>
+            <div className="text-2xl font-bold tracking-[0.15em] text-white uppercase">Ableware</div>
+            <div className="text-[10px] tracking-[0.3em] text-slate-500 uppercase mt-0.5">Assistive Lift Control System</div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-6">
-          <StatusDot active={hubConnected} color="bg-emerald-400 text-emerald-400" label="Hub" />
-          <StatusDot active={piConnected} color="bg-violet-400 text-violet-400" label="Pi" />
-          <StatusDot active={simConnected} color="bg-sky-400 text-sky-400" label="Sim" />
-          <StatusDot active={arduinoConnected} color="bg-cyan-400 text-cyan-400" label="Arduino" />
+        {/* Connection nodes */}
+        <div className="flex items-center gap-8">
+          {[
+            { label: 'HUB', active: hubConnected, color: '#4ade80', glow: '#4ade8060' },
+            { label: 'PI', active: piConnected, color: '#a78bfa', glow: '#a78bfa60' },
+            { label: 'SIM', active: simConnected, color: '#38bdf8', glow: '#38bdf860' },
+            { label: 'ARDUINO', active: arduinoConnected, color: '#22d3ee', glow: '#22d3ee60' },
+          ].map(({ label, active, color, glow }) => (
+            <div key={label} className="flex flex-col items-center gap-2">
+              <div
+                className="w-2.5 h-2.5 rounded-full transition-all duration-700"
+                style={{
+                  backgroundColor: active ? color : '#1e293b',
+                  boxShadow: active ? `0 0 8px ${color}, 0 0 16px ${glow}` : 'none',
+                }}
+              />
+              <span className="text-[9px] tracking-[0.25em] uppercase" style={{ color: active ? color : '#334155' }}>
+                {label}
+              </span>
+            </div>
+          ))}
         </div>
-      </header>
+      </div>
 
-      {/* ── Main content ─────────────────────────────────────── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-px bg-[#1a1a2e]">
+      {/* ── Main ─────────────────────────────────────────────── */}
+      <div className="flex-1 grid grid-cols-5 min-h-0">
 
-        {/* ── Left panel: Telemetry ────────────────────────── */}
-        <div className="bg-[#080810] p-8 flex flex-col gap-6">
+        {/* ── Left: Telemetry (2/5) ───────────────────────────── */}
+        <div className="col-span-2 flex flex-col gap-0 border-r border-white/[0.06] p-10">
 
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono tracking-widest uppercase text-[#4a5568]">
-              Actuator Telemetry
-            </span>
-            <div className={`flex items-center gap-1.5 text-xs font-mono ${
-              isEmergency ? 'text-red-400' : isMoving ? 'text-amber-400' : 'text-emerald-400'
-            }`}>
-              <Circle className={`w-2 h-2 fill-current ${isMoving && !isEmergency ? 'animate-pulse' : ''}`} />
-              {isEmergency ? 'E-STOP' : isMoving ? 'MOVING' : 'STABLE'}
+          {/* System status pill */}
+          <div className="mb-8">
+            <div
+              className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs tracking-[0.2em] uppercase border transition-all duration-500 ${
+                isEmergency
+                  ? 'border-red-500/50 bg-red-500/10 text-red-400'
+                  : isMoving
+                  ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
+                  : 'border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-400'
+              }`}
+              style={isEmergency ? { boxShadow: '0 0 20px #ef444420' } : isMoving ? { boxShadow: '0 0 20px #f59e0b20' } : {}}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${isMoving && !isEmergency ? 'animate-pulse' : ''}`}
+                style={{ backgroundColor: isEmergency ? '#f87171' : isMoving ? '#fbbf24' : '#4ade80' }} />
+              {isEmergency ? 'Emergency Stop Active' : isMoving ? 'Actuator Moving' : 'System Stable'}
             </div>
           </div>
 
-          {/* Position bar */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs font-mono tracking-widest uppercase text-[#4a5568]">Position</span>
-              <div className="text-right">
-                <span className="text-3xl font-mono font-bold text-[#e2e8f0]">{positionPct}</span>
-                <span className="text-lg font-mono text-[#4a5568] ml-1">%</span>
-                <span className="text-xs font-mono text-[#3a3a5a] ml-2">
-                  {simState ? (simState.position * 1000).toFixed(1) : '0.0'} mm
-                </span>
-              </div>
+          {/* Big position number */}
+          <div className="mb-2">
+            <div className="text-[10px] tracking-[0.35em] uppercase text-slate-500 mb-3">Lift Position</div>
+            <div className="flex items-end gap-3 mb-5">
+              <span
+                className="text-8xl font-bold text-white leading-none"
+                style={{ textShadow: '0 0 40px #38bdf840' }}
+              >
+                {positionPct}
+              </span>
+              <span className="text-3xl text-slate-400 mb-2">%</span>
+              <span className="text-slate-500 text-base mb-2 ml-1">
+                {simState ? (simState.position * 1000).toFixed(1) : '0.0'} mm
+              </span>
             </div>
-            <div className="h-1.5 bg-[#1a1a2e] rounded-full overflow-hidden">
+
+            {/* Position bar */}
+            <div className="relative h-2 bg-white/[0.04] rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-sky-600 to-sky-400 rounded-full transition-all duration-500"
-                style={{ width: `${positionPct}%` }}
+                className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
+                style={{
+                  width: `${positionPct}%`,
+                  background: 'linear-gradient(90deg, #0ea5e9, #38bdf8)',
+                  boxShadow: positionPct > 0 ? '0 0 12px #38bdf8' : 'none',
+                }}
               />
             </div>
           </div>
 
           {/* Step indicator */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs font-mono tracking-widest uppercase text-[#4a5568]">Step Position</span>
-              <span className="text-sm font-mono text-[#94a3b8]">
-                <span className="text-[#e2e8f0]">{positionSteps}</span>
-                <span className="text-[#3a3a5a]"> / 7</span>
-              </span>
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] tracking-[0.35em] uppercase text-slate-500">Step Position</span>
+              <span className="text-sm text-white font-bold">{positionSteps}<span className="text-slate-600 font-normal"> / 7</span></span>
             </div>
-            <div className="h-1 bg-[#1a1a2e] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-violet-600 to-violet-400 rounded-full transition-all duration-300"
-                style={{ width: `${stepPct}%` }}
-              />
-            </div>
-            <div className="flex justify-between">
+            <div className="flex gap-2">
               {Array.from({ length: 8 }, (_, i) => (
                 <div
                   key={i}
-                  className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                    i <= positionSteps ? 'bg-violet-400' : 'bg-[#1a1a2e]'
-                  }`}
+                  className="flex-1 h-1.5 rounded-full transition-all duration-300"
+                  style={{
+                    backgroundColor: i < positionSteps ? '#a78bfa' : i === positionSteps ? '#7c3aed' : '#1e1e2e',
+                    boxShadow: i < positionSteps ? '0 0 6px #a78bfa80' : 'none',
+                  }}
                 />
               ))}
             </div>
           </div>
 
-          {/* Metrics */}
-          <div className="flex-1 border border-[#1a1a2e] rounded-lg p-4 space-y-0">
-            <MetricRow label="Velocity" value={simState ? (simState.velocity * 1000).toFixed(1) : '—'} unit="mm/s" />
-            <MetricRow label="PWM Output" value={simState ? simState.pwm.toFixed(3) : '—'} />
-            <MetricRow label="Target" value={simState ? (simState.target_position * 1000).toFixed(1) : '—'} unit="mm" />
-            <MetricRow label="Stall" value={simState?.stalled ? 'DETECTED' : 'Clear'} />
-            {lastCommand && (
-              <MetricRow label="Last Cmd" value={`${lastCommand} via ${lastSource}`} />
-            )}
+          {/* Metrics grid */}
+          <div className="flex-1 space-y-0">
+            <div className="text-[10px] tracking-[0.35em] uppercase text-slate-600 mb-4">Telemetry</div>
+            {[
+              { label: 'Velocity', value: simState ? (simState.velocity * 1000).toFixed(1) : '—', unit: 'mm/s' },
+              { label: 'PWM Output', value: simState ? simState.pwm.toFixed(3) : '—', unit: '' },
+              { label: 'Target', value: simState ? (simState.target_position * 1000).toFixed(1) : '—', unit: 'mm' },
+              { label: 'Stall', value: simState?.stalled ? 'DETECTED' : 'Clear', unit: '' },
+              { label: 'Last Cmd', value: lastCommand || '—', unit: lastCommand ? `via ${lastSource}` : '' },
+            ].map(({ label, value, unit }) => (
+              <div key={label} className="flex items-center justify-between py-3 border-b border-white/[0.04]">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-slate-600">{label}</span>
+                <span className="text-sm text-slate-200 font-medium">
+                  {value}
+                  {unit && <span className="text-slate-600 text-xs ml-1.5">{unit}</span>}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* ── Right panel: Controls ────────────────────────── */}
-        <div className="bg-[#080810] p-8 flex flex-col gap-4">
+        {/* ── Right: Controls (3/5) ──────────────────────────── */}
+        <div className="col-span-3 flex flex-col p-10 gap-5">
 
-          <span className="text-xs font-mono tracking-widest uppercase text-[#4a5568]">
-            Manual Control
-          </span>
+          <div className="text-[10px] tracking-[0.35em] uppercase text-slate-600 mb-2">Manual Control</div>
 
           {/* Resume */}
           <button
             onClick={() => sendCommand('START')}
             disabled={!hubConnected}
-            className={`w-full py-4 rounded-lg border font-mono text-sm tracking-widest uppercase transition-all duration-200 ${
-              hubConnected
-                ? 'border-emerald-800 text-emerald-400 hover:bg-emerald-950 hover:border-emerald-600'
-                : 'border-[#1a1a2e] text-[#2a2a3a] cursor-not-allowed'
-            }`}
+            className="w-full py-5 rounded-xl border text-sm tracking-[0.2em] uppercase font-semibold transition-all duration-200 disabled:cursor-not-allowed"
+            style={hubConnected ? {
+              borderColor: '#166534',
+              color: '#4ade80',
+              backgroundColor: 'transparent',
+            } : {
+              borderColor: '#1e293b',
+              color: '#1e293b',
+              backgroundColor: 'transparent',
+            }}
+            onMouseEnter={e => { if (hubConnected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#052e16'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
           >
-            <Power className="w-4 h-4 inline mr-2" />
-            Resume
+            <Power className="w-4 h-4 inline mr-3" />
+            Resume System
           </button>
 
           {/* UP */}
           <button
             onClick={() => sendCommand('UP')}
             disabled={!hubConnected || isEmergency}
-            className={`flex-1 w-full py-10 rounded-lg border font-mono text-lg tracking-widest uppercase transition-all duration-200 ${
-              hubConnected && !isEmergency
-                ? 'border-sky-800 text-sky-300 hover:bg-sky-950 hover:border-sky-500 active:scale-[0.98]'
-                : 'border-[#1a1a2e] text-[#2a2a3a] cursor-not-allowed'
-            }`}
+            className="flex-1 w-full rounded-2xl border-2 font-bold tracking-[0.15em] uppercase transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3"
+            style={hubConnected && !isEmergency ? {
+              borderColor: '#0369a1',
+              color: '#38bdf8',
+              backgroundColor: '#0c1a2e',
+            } : {
+              borderColor: '#0f172a',
+              color: '#1e293b',
+              backgroundColor: 'transparent',
+            }}
+            onMouseEnter={e => { if (hubConnected && !isEmergency) { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#38bdf8'; b.style.boxShadow = '0 0 30px #38bdf820, inset 0 0 30px #38bdf808'; }}}
+            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = hubConnected && !isEmergency ? '#0369a1' : '#0f172a'; b.style.boxShadow = 'none'; }}
           >
-            <ChevronUp className="w-8 h-8 mx-auto mb-1" />
-            Up
+            <ChevronUp className="w-14 h-14" />
+            <span className="text-2xl">UP</span>
           </button>
 
           {/* DOWN */}
           <button
             onClick={() => sendCommand('DOWN')}
             disabled={!hubConnected || isEmergency}
-            className={`flex-1 w-full py-10 rounded-lg border font-mono text-lg tracking-widest uppercase transition-all duration-200 ${
-              hubConnected && !isEmergency
-                ? 'border-sky-800 text-sky-300 hover:bg-sky-950 hover:border-sky-500 active:scale-[0.98]'
-                : 'border-[#1a1a2e] text-[#2a2a3a] cursor-not-allowed'
-            }`}
+            className="flex-1 w-full rounded-2xl border-2 font-bold tracking-[0.15em] uppercase transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3"
+            style={hubConnected && !isEmergency ? {
+              borderColor: '#0369a1',
+              color: '#38bdf8',
+              backgroundColor: '#0c1a2e',
+            } : {
+              borderColor: '#0f172a',
+              color: '#1e293b',
+              backgroundColor: 'transparent',
+            }}
+            onMouseEnter={e => { if (hubConnected && !isEmergency) { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#38bdf8'; b.style.boxShadow = '0 0 30px #38bdf820, inset 0 0 30px #38bdf808'; }}}
+            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = hubConnected && !isEmergency ? '#0369a1' : '#0f172a'; b.style.boxShadow = 'none'; }}
           >
-            <ChevronDown className="w-8 h-8 mx-auto mb-1" />
-            Down
+            <ChevronDown className="w-14 h-14" />
+            <span className="text-2xl">DOWN</span>
           </button>
 
           {/* Emergency stop */}
           <button
             onClick={() => sendCommand('STOP')}
             disabled={!hubConnected}
-            className={`w-full py-5 rounded-lg border-2 font-mono text-base tracking-widest uppercase transition-all duration-200 ${
-              isEmergency
-                ? 'border-red-500 bg-red-950 text-red-300 animate-pulse'
-                : hubConnected
-                ? 'border-red-900 text-red-500 hover:bg-red-950 hover:border-red-600'
-                : 'border-[#1a1a2e] text-[#2a2a3a] cursor-not-allowed'
-            }`}
+            className="w-full py-7 rounded-xl border-2 font-bold tracking-[0.2em] uppercase text-lg transition-all duration-200 disabled:cursor-not-allowed flex items-center justify-center gap-4"
+            style={isEmergency ? {
+              borderColor: '#ef4444',
+              color: '#fca5a5',
+              backgroundColor: '#1f0a0a',
+              boxShadow: '0 0 40px #ef444430',
+            } : hubConnected ? {
+              borderColor: '#7f1d1d',
+              color: '#ef4444',
+              backgroundColor: '#0d0505',
+            } : {
+              borderColor: '#1e293b',
+              color: '#1e293b',
+              backgroundColor: 'transparent',
+            }}
+            onMouseEnter={e => { if (hubConnected && !isEmergency) { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#ef4444'; b.style.boxShadow = '0 0 30px #ef444430'; }}}
+            onMouseLeave={e => { if (!isEmergency) { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = hubConnected ? '#7f1d1d' : '#1e293b'; b.style.boxShadow = 'none'; }}}
           >
-            <AlertTriangle className="w-4 h-4 inline mr-2" />
-            {isEmergency ? 'E-STOP ACTIVE' : 'Emergency Stop'}
+            <AlertTriangle className="w-6 h-6" />
+            {isEmergency ? 'E-STOP ACTIVE — Click to Resume' : 'Emergency Stop'}
           </button>
         </div>
       </div>
 
       {/* ── Command log ──────────────────────────────────────── */}
-      {history.length > 0 && (
-        <div className="border-t border-[#1a1a2e] px-8 py-4">
-          <div className="flex items-center gap-3 mb-3">
-            <Activity className="w-3 h-3 text-[#3a3a5a]" />
-            <span className="text-xs font-mono tracking-widest uppercase text-[#3a3a5a]">Command Log</span>
+      <div className="border-t border-white/[0.05] px-10 py-4">
+        <div className="flex items-center gap-8 overflow-x-auto">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Activity className="w-3 h-3 text-slate-600" />
+            <span className="text-[9px] tracking-[0.3em] uppercase text-slate-600">Log</span>
           </div>
-          <div className="flex gap-6 overflow-x-auto">
-            {history.map((entry, i) => (
-              <div key={i} className={`flex-shrink-0 font-mono text-xs ${i === 0 ? 'text-[#94a3b8]' : 'text-[#3a3a5a]'}`}>
-                <span className="text-[#2a2a3a] mr-2">
-                  {new Date(entry.timestamp * 1000).toLocaleTimeString('en', { hour12: false })}
-                </span>
-                <span className={`mr-2 ${
-                  entry.source === 'voice' ? 'text-violet-400' :
-                  entry.source === 'manual' ? 'text-sky-400' : 'text-[#94a3b8]'
-                }`}>{entry.command}</span>
-                <span className="text-[#2a2a3a]">{entry.source}</span>
-              </div>
-            ))}
-          </div>
+          {history.length === 0 && (
+            <span className="text-[11px] text-slate-700 font-mono">No commands yet</span>
+          )}
+          {history.map((entry, i) => (
+            <div key={i} className={`flex items-center gap-3 flex-shrink-0 font-mono text-xs transition-opacity ${i === 0 ? 'opacity-100' : 'opacity-40'}`}>
+              <span className="text-slate-600">{new Date(entry.timestamp * 1000).toLocaleTimeString('en', { hour12: false })}</span>
+              <span className={`font-bold ${entry.source === 'voice' ? 'text-violet-400' : 'text-sky-400'}`}>{entry.command}</span>
+              <span className="text-slate-600">{entry.source}</span>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
