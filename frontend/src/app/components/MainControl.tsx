@@ -174,7 +174,7 @@ export function MainControl() {
               <span className="text-3xl font-bold text-white">{positionSteps}<span className="text-violet-500 text-xl"> / 7</span></span>
             </div>
             <div className="flex gap-2">
-              {Array.from({ length: 8 }, (_, i) => (
+              {Array.from({ length: 7 }, (_, i) => (
                 <div key={i} className="flex-1 h-3 rounded-full transition-all duration-300"
                   style={{ backgroundColor: i < positionSteps ? '#a78bfa' : '#1e1e2e', boxShadow: i < positionSteps ? '0 0 8px #a78bfa' : 'none' }} />
               ))}
