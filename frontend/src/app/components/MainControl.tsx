@@ -54,6 +54,7 @@ export function MainControl() {
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const [lastSource, setLastSource] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [override, setOverride] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -100,7 +101,7 @@ export function MainControl() {
       toast.error('Not connected');
       return;
     }
-    wsRef.current.send(JSON.stringify({ type: 'command', command: cmd, timestamp: Date.now() / 1000, source: 'manual' }));
+    wsRef.current.send(JSON.stringify({ type: 'command', command: cmd, timestamp: Date.now() / 1000, source: 'manual', override }));
   };
 
   const positionPct = simState ? Math.round((simState.position / ACT_STROKE) * 100) : 0;
@@ -120,6 +121,20 @@ export function MainControl() {
             <div className="text-xs tracking-[0.3em] text-slate-400 uppercase mt-1">Assistive Lift Control System</div>
           </div>
         </div>
+
+        {/* Override toggle */}
+        <button
+          onClick={() => setOverride(o => !o)}
+          className="text-[9px] font-mono tracking-widest uppercase px-2 py-1 rounded border transition-all duration-200"
+          style={override ? {
+            borderColor: '#ef4444', color: '#ef4444', backgroundColor: '#1f0505',
+            boxShadow: '0 0 8px #ef444440'
+          } : {
+            borderColor: '#3f1010', color: '#7f2020', backgroundColor: 'transparent'
+          }}
+        >
+          {override ? '⚠ OVERRIDE ON' : 'OVERRIDE'}
+        </button>
 
         {/* Connection nodes */}
         <div className="flex items-center gap-8">

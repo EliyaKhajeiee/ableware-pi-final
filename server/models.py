@@ -11,6 +11,7 @@ class CommandMessage(BaseModel):
     command: str
     timestamp: float = Field(default_factory=time.time)
     source: str = "manual"
+    override: bool = False
 
 
 class SimulationState(BaseModel):

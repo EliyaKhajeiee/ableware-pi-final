@@ -44,13 +44,13 @@ async def route_command(msg: CommandMessage) -> None:
     if cmd in {"UP", "DOWN"} and app_state.simulation_state.emergency_stopped:
         logger.info("Emergency stop active - skipping step %s", cmd)
     elif cmd == "UP":
-        if app_state.position_steps >= _MAX_STEPS:
+        if not msg.override and app_state.position_steps >= _MAX_STEPS:
             logger.info("At ceiling - skipping step UP")
         else:
             app_state.position_steps += 1
             hardware_should_move = True
     elif cmd == "DOWN":
-        if app_state.position_steps <= _MIN_STEPS:
+        if not msg.override and app_state.position_steps <= _MIN_STEPS:
             logger.info("At floor - skipping step DOWN")
         else:
             app_state.position_steps -= 1
