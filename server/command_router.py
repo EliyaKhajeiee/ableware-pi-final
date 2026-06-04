@@ -40,22 +40,30 @@ async def route_command(msg: CommandMessage) -> None:
 
     app_state.record_command(cmd, msg.source, msg.timestamp or time.time())
 
+    hardware_should_move = False
+    if cmd == "UP":
+        if app_state.position_steps >= _MAX_STEPS:
+            logger.info("At ceiling - skipping step UP")
+        else:
+            app_state.position_steps += 1
+            hardware_should_move = True
+    elif cmd == "DOWN":
+        if app_state.position_steps <= _MIN_STEPS:
+            logger.info("At floor - skipping step DOWN")
+        else:
+            app_state.position_steps -= 1
+            hardware_should_move = True
+
     # Send to Arduino (hardware)
     arduino = get_arduino()
     if arduino and arduino.connected:
         logger.warning("Arduino connected — sending %s", cmd)
         if cmd == "UP":
-            if app_state.position_steps >= _MAX_STEPS:
-                logger.info("At ceiling - skipping Arduino UP")
-            else:
+            if hardware_should_move:
                 arduino.up()
-                app_state.position_steps += 1
         elif cmd == "DOWN":
-            if app_state.position_steps <= _MIN_STEPS:
-                logger.info("At floor - skipping Arduino DOWN")
-            else:
+            if hardware_should_move:
                 arduino.down()
-                app_state.position_steps -= 1
         elif cmd == "STOP":
             arduino.emergency_stop()
         elif cmd == "START":

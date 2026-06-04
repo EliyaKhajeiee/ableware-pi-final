@@ -169,6 +169,8 @@ ARMPIT_DEVICE_ATTACH_LINKS = (
 _cmd_queue: _queue.Queue = _queue.Queue()
 _sim_ref = None      # holds the active WheelchairLiftSim3D instance in serve mode
 _VALID_COMMANDS = {"START", "STOP", "UP", "DOWN", "LEFT", "RIGHT"}
+COMMAND_STEPS = 7
+COMMAND_STEP_SIZE = ACT_STROKE / COMMAND_STEPS
 
 
 class _SimAPIHandler(BaseHTTPRequestHandler):
@@ -952,13 +954,15 @@ class WheelchairLiftSim3D:
                                     break
                                 current_pos = (self.act_L.position + self.act_R.position) / 2.0
                                 if cmd == 'UP':
-                                    self.ctrl.set_target_position(ACT_STROKE)
-                                    ctrl_state["target"] = 1.0
-                                    last_event_text = f"Latest command: UP  -> target {ACT_STROKE*1000:.1f} mm"
+                                    new_target = min(self.ctrl.target_position + COMMAND_STEP_SIZE, ACT_STROKE)
+                                    self.ctrl.set_target_position(new_target)
+                                    ctrl_state["target"] = new_target / ACT_STROKE
+                                    last_event_text = f"Latest command: UP  -> target {new_target*1000:.1f} mm"
                                 elif cmd == 'DOWN':
-                                    self.ctrl.set_target_position(0.0)
-                                    ctrl_state["target"] = 0.0
-                                    last_event_text = "Latest command: DOWN -> target 0.0 mm"
+                                    new_target = max(self.ctrl.target_position - COMMAND_STEP_SIZE, 0.0)
+                                    self.ctrl.set_target_position(new_target)
+                                    ctrl_state["target"] = new_target / ACT_STROKE
+                                    last_event_text = f"Latest command: DOWN -> target {new_target*1000:.1f} mm"
                                 elif cmd == 'START':
                                     self.ctrl.reset_emergency_stop()
                                     self.act_L.reset_emergency_stop()
