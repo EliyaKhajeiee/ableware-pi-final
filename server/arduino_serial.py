@@ -25,7 +25,7 @@ class ArduinoSerial:
     All sends are fire-and-forget; no ACK required.
     """
 
-    def __init__(self, port: str, baud: int = 115200, reconnect_delay: float = 3.0) -> None:
+    def __init__(self, port: str, baud: int = 115200, reconnect_delay: float = 8.0) -> None:
         self.port = port
         self.baud = baud
         self.reconnect_delay = reconnect_delay
@@ -118,7 +118,7 @@ class ArduinoSerial:
                     raise OSError("No USB serial port found")
                 ser = serial.Serial(port, self.baud, timeout=0.1)
                 time.sleep(2.0)  # wait for Arduino to finish booting after DTR reset
-                logger.info("Arduino connected on %s at %d baud", port, self.baud)
+                logger.warning("Arduino connected on %s at %d baud", port, self.baud)
                 with self._lock:
                     self._ser = ser
 

@@ -23,6 +23,12 @@ actuator:
 simulation:
   physics_dt: 0.01           # Physics loop time step (10ms)
 
+arduino:
+  enabled: true
+  port: ""   # auto-detect — leave empty to find Arduino automatically
+
+  baud: 115200
+
 feedback:
   wake_beep_freq: 880        # Hz — double beep on wake word detection
   confirm_beep_freq: 1047    # Hz — single beep on command sent
