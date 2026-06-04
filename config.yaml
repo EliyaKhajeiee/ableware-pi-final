@@ -25,7 +25,7 @@ simulation:
 
 arduino:
   enabled: true
-  port: "/dev/cu.usbmodem11101"   # recheck with: ls /dev/cu.usb*
+  port: ""   # auto-detect — leave empty to find Arduino automatically
 
   baud: 115200
 

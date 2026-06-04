@@ -23,7 +23,7 @@ class ArduinoSerial:
     All sends are fire-and-forget; no ACK required.
     """
 
-    def __init__(self, port: str, baud: int = 115200, reconnect_delay: float = 3.0) -> None:
+    def __init__(self, port: str, baud: int = 115200, reconnect_delay: float = 8.0) -> None:
         self.port = port
         self.baud = baud
         self.reconnect_delay = reconnect_delay
