@@ -33,7 +33,12 @@ def _run_serve(port: int = 8001) -> None:
     _sim_module_ref._sim_ref = sim
     _sim_module_ref._serve_api_port = port
 
-    api_server = HTTPServer(('', port), _SimAPIHandler)
+    try:
+        api_server = HTTPServer(('', port), _SimAPIHandler)
+    except OSError as exc:
+        print(f"[Ableware] Cannot listen on :{port}: {exc}")
+        print("[Ableware] Stop simulation_stub.py or any other process using this port, then run serve again.")
+        sys.exit(1)
     api_thread = threading.Thread(target=api_server.serve_forever, daemon=True)
     api_thread.start()
 
@@ -41,7 +46,11 @@ def _run_serve(port: int = 8001) -> None:
     print("[Ableware] Hub controls lift target. Keyboard still adjusts weight/force/speed.")
     print("[Ableware] Press q in the PyBullet window terminal to quit.")
 
-    sim.run(external_control=True)
+    try:
+        sim.run(external_control=True)
+    finally:
+        api_server.shutdown()
+        api_server.server_close()
 
 
 def main() -> None:

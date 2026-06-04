@@ -22,6 +22,13 @@ _MIN_STEPS = 0
 _MAX_STEPS = 7
 
 
+def _describe_http_error(exc: Exception) -> str:
+    text = str(exc).strip()
+    if text:
+        return f"{type(exc).__name__}: {text}"
+    return type(exc).__name__
+
+
 async def route_command(msg: CommandMessage) -> None:
     """Validate command → send to Arduino + sim → broadcast state."""
     cmd = msg.command.upper()
@@ -31,42 +38,50 @@ async def route_command(msg: CommandMessage) -> None:
 
     app_state = get_state()
 
-    if cmd == "DOWN" and app_state.position_steps <= _MIN_STEPS:
-        logger.info("At floor — blocking DOWN")
-        return
-
-    if cmd == "UP" and app_state.position_steps >= _MAX_STEPS:
-        logger.info("At ceiling — blocking UP")
-        return
-
     app_state.record_command(cmd, msg.source, msg.timestamp or time.time())
+
+    hardware_should_move = False
+    if cmd in {"UP", "DOWN"} and app_state.simulation_state.emergency_stopped:
+        logger.info("Emergency stop active - skipping step %s", cmd)
+    elif cmd == "UP":
+        if app_state.position_steps >= _MAX_STEPS:
+            logger.info("At ceiling - skipping step UP")
+        else:
+            app_state.position_steps += 1
+            hardware_should_move = True
+    elif cmd == "DOWN":
+        if app_state.position_steps <= _MIN_STEPS:
+            logger.info("At floor - skipping step DOWN")
+        else:
+            app_state.position_steps -= 1
+            hardware_should_move = True
 
     # Send to Arduino (hardware)
     arduino = get_arduino()
     if arduino and arduino.connected:
         logger.warning("Arduino connected — sending %s", cmd)
         if cmd == "UP":
-            arduino.up()
-            app_state.position_steps += 1
+            if hardware_should_move:
+                arduino.up()
         elif cmd == "DOWN":
-            arduino.down()
-            app_state.position_steps -= 1
+            if hardware_should_move:
+                arduino.down()
         elif cmd == "STOP":
             arduino.emergency_stop()
         elif cmd == "START":
             arduino.resume()
     else:
-        logger.warning("Arduino NOT connected — command %s dropped (arduino=%s connected=%s)",
+        logger.warning("Arduino NOT connected - skipping hardware for %s (arduino=%s connected=%s)",
                        cmd, arduino, arduino.connected if arduino else "N/A")
 
-    # Forward to simulation stub
+    # Forward to the simulation API. In the normal workflow this is wheelchair_sim_3d.py --serve.
     try:
         async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             resp = await client.post(f"{SIM_URL}/command", json={"command": cmd})
             resp.raise_for_status()
         app_state.sim_connected = True
     except Exception as exc:
-        logger.warning("Sim stub unreachable: %s", exc)
+        logger.warning("Simulation unreachable at %s: %s", SIM_URL, _describe_http_error(exc))
         app_state.sim_connected = False
 
     # Fetch updated sim state
@@ -86,7 +101,7 @@ async def _fetch_sim_state() -> Optional[SimulationState]:
             get_state().sim_connected = True
             return SimulationState(**resp.json())
     except Exception as exc:
-        logger.warning("Sim state fetch failed: %s", exc)
+        logger.warning("Sim state fetch failed at %s/state: %s", SIM_URL, _describe_http_error(exc))
         get_state().sim_connected = False
         return None
 

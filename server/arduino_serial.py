@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 from typing import Optional
+import platform
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,45 @@ class ArduinoSerial:
     def _find_port() -> Optional[str]:
         """Return the first USB serial port found (auto-detect)."""
         import glob
+        current_os = platform.system()
+
+        if current_os == "Windows":
+            try:
+                from serial.tools import list_ports
+            except Exception as exc:
+                logger.warning("PySerial port listing unavailable: %s", exc)
+                return None
+
+            ports = sorted(list_ports.comports(), key=lambda port: port.device)
+            preferred_terms = (
+                "arduino",
+                "ch340",
+                "ch341",
+                "usb serial",
+                "usb-serial",
+                "cp210",
+                "ftdi",
+            )
+
+            for port in ports:
+                details = " ".join(
+                    str(value or "")
+                    for value in (
+                        port.device,
+                        port.description,
+                        port.manufacturer,
+                        port.product,
+                        port.hwid,
+                    )
+                ).lower()
+                if any(term in details for term in preferred_terms):
+                    return port.device
+
+            if ports:
+                return ports[0].device
+
+            return None
+
         for pattern in ("/dev/cu.usbmodem*", "/dev/ttyUSB*", "/dev/ttyACM*"):
             ports = sorted(glob.glob(pattern))
             if ports:
