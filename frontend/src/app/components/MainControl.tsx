@@ -230,9 +230,9 @@ export function MainControl() {
             ].map(({ label, value, unit }) => (
               <div key={label} className="flex items-center justify-between py-3 border-b border-white/[0.04]">
                 <span className="text-[11px] tracking-[0.2em] uppercase text-slate-600">{label}</span>
-                <span className="text-sm text-slate-200 font-medium">
+                <span className="text-base text-white font-bold">
                   {value}
-                  {unit && <span className="text-slate-600 text-xs ml-1.5">{unit}</span>}
+                  {unit && <span className="text-slate-500 text-sm font-normal ml-1.5">{unit}</span>}
                 </span>
               </div>
             ))}
