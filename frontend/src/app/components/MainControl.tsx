@@ -171,7 +171,7 @@ export function MainControl() {
 
           {/* Big position number */}
           <div className="mb-2">
-            <div className="text-[10px] tracking-[0.35em] uppercase text-slate-500 mb-3">Lift Position</div>
+            <div className="text-xs tracking-[0.25em] uppercase text-slate-300 font-semibold mb-3">Lift Position</div>
             <div className="flex items-end gap-3 mb-5">
               <span
                 className="text-8xl font-bold text-white leading-none"
@@ -201,7 +201,7 @@ export function MainControl() {
           {/* Step indicator */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] tracking-[0.35em] uppercase text-slate-500">Step Position</span>
+              <span className="text-xs tracking-[0.25em] uppercase text-slate-300 font-semibold">Step Position</span>
               <span className="text-sm text-white font-bold">{positionSteps}<span className="text-slate-600 font-normal"> / 7</span></span>
             </div>
             <div className="flex gap-2">
@@ -229,7 +229,7 @@ export function MainControl() {
               { label: 'Last Cmd', value: lastCommand || '—', unit: lastCommand ? `via ${lastSource}` : '' },
             ].map(({ label, value, unit }) => (
               <div key={label} className="flex items-center justify-between py-3 border-b border-white/[0.04]">
-                <span className="text-[11px] tracking-[0.2em] uppercase text-slate-600">{label}</span>
+                <span className="text-xs tracking-[0.15em] uppercase text-slate-300 font-semibold">{label}</span>
                 <span className="text-base text-white font-bold">
                   {value}
                   {unit && <span className="text-slate-500 text-sm font-normal ml-1.5">{unit}</span>}
