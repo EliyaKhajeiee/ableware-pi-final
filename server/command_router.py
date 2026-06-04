@@ -22,6 +22,13 @@ _MIN_STEPS = 0
 _MAX_STEPS = 7
 
 
+def _describe_http_error(exc: Exception) -> str:
+    text = str(exc).strip()
+    if text:
+        return f"{type(exc).__name__}: {text}"
+    return type(exc).__name__
+
+
 async def route_command(msg: CommandMessage) -> None:
     """Validate command → send to Arduino + sim → broadcast state."""
     cmd = msg.command.upper()
@@ -55,14 +62,14 @@ async def route_command(msg: CommandMessage) -> None:
         elif cmd == "START":
             arduino.resume()
 
-    # Forward to simulation stub
+    # Forward to the simulation API. In the normal workflow this is wheelchair_sim_3d.py --serve.
     try:
         async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             resp = await client.post(f"{SIM_URL}/command", json={"command": cmd})
             resp.raise_for_status()
         app_state.sim_connected = True
     except Exception as exc:
-        logger.warning("Sim stub unreachable: %s", exc)
+        logger.warning("Simulation unreachable at %s: %s", SIM_URL, _describe_http_error(exc))
         app_state.sim_connected = False
 
     # Fetch updated sim state
@@ -82,7 +89,7 @@ async def _fetch_sim_state() -> Optional[SimulationState]:
             get_state().sim_connected = True
             return SimulationState(**resp.json())
     except Exception as exc:
-        logger.warning("Sim state fetch failed: %s", exc)
+        logger.warning("Sim state fetch failed at %s/state: %s", SIM_URL, _describe_http_error(exc))
         get_state().sim_connected = False
         return None
 

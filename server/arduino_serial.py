@@ -4,6 +4,8 @@ import logging
 import threading
 import time
 from typing import Optional
+import platform
+import socket
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +93,19 @@ class ArduinoSerial:
     def _find_port() -> Optional[str]:
         """Return the first USB serial port found (auto-detect)."""
         import glob
-        for pattern in ("/dev/cu.usbmodem*", "/dev/ttyUSB*", "/dev/ttyACM*"):
-            ports = sorted(glob.glob(pattern))
-            if ports:
-                return ports[0]
+        current_os = platform.system()
+
+        if current_os != "Windows":
+            for pattern in ("/dev/cu.usbmodem*", "/dev/ttyUSB*", "/dev/ttyACM*"):
+                ports = sorted(glob.glob(pattern))
+                if ports:
+                    return ports[0]
+        else:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('localhost', 0))
+                # Retrieve and return the allocated port number
+                print("s: " + s.getsockname()[1])
+                return s.getsockname()[1]
         return None
 
     def _connect_loop(self) -> None:

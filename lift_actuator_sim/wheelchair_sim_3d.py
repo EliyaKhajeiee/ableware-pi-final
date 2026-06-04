@@ -166,10 +166,9 @@ ARMPIT_DEVICE_ATTACH_LINKS = (
 
 # ── Network API (used when running with --serve) ───────────────────────────
 
-STEP_SIZE = 0.0254   # metres per UP/DOWN command (1 inch per click)
-
 _cmd_queue: _queue.Queue = _queue.Queue()
 _sim_ref = None      # holds the active WheelchairLiftSim3D instance in serve mode
+_VALID_COMMANDS = {"START", "STOP", "UP", "DOWN", "LEFT", "RIGHT"}
 
 
 class _SimAPIHandler(BaseHTTPRequestHandler):
@@ -181,8 +180,12 @@ class _SimAPIHandler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get('Content-Length', 0))
         body = _json.loads(self.rfile.read(length)) if length else {}
-        _cmd_queue.put(body.get('command', '').upper())
-        self._respond(200, {'status': 'ok'})
+        cmd = body.get('command', '').upper()
+        if cmd not in _VALID_COMMANDS:
+            self._respond(422, {'detail': f"Unknown command: {cmd!r}"})
+            return
+        _cmd_queue.put(cmd)
+        self._respond(200, {'status': 'ok', 'command': cmd})
 
     def do_GET(self):
         if self.path == '/state':
@@ -949,15 +952,13 @@ class WheelchairLiftSim3D:
                                     break
                                 current_pos = (self.act_L.position + self.act_R.position) / 2.0
                                 if cmd == 'UP':
-                                    new_target = min(self.ctrl.target_position + STEP_SIZE, ACT_STROKE)
-                                    self.ctrl.set_target_position(new_target)
-                                    ctrl_state["target"] = new_target / ACT_STROKE
-                                    last_event_text = f"Latest command: UP  -> target {new_target*1000:.1f} mm"
+                                    self.ctrl.set_target_position(ACT_STROKE)
+                                    ctrl_state["target"] = 1.0
+                                    last_event_text = f"Latest command: UP  -> target {ACT_STROKE*1000:.1f} mm"
                                 elif cmd == 'DOWN':
-                                    new_target = max(self.ctrl.target_position - STEP_SIZE, 0.0)
-                                    self.ctrl.set_target_position(new_target)
-                                    ctrl_state["target"] = new_target / ACT_STROKE
-                                    last_event_text = f"Latest command: DOWN -> target {new_target*1000:.1f} mm"
+                                    self.ctrl.set_target_position(0.0)
+                                    ctrl_state["target"] = 0.0
+                                    last_event_text = "Latest command: DOWN -> target 0.0 mm"
                                 elif cmd == 'START':
                                     self.ctrl.reset_emergency_stop()
                                     self.act_L.reset_emergency_stop()
@@ -1302,21 +1303,26 @@ if __name__ == "__main__":
                         help="Port for the HTTP API (default: 8001, only used with --serve)")
     args = parser.parse_args()
 
+    if args.serve and args.demo:
+        parser.error("--serve cannot be combined with --demo because demo mode does not read hub commands")
+
     sim = WheelchairLiftSim3D()
 
     if args.serve:
         _sim_ref = sim
 
-        server = HTTPServer(("", args.port), _SimAPIHandler)
+        try:
+            server = HTTPServer(("", args.port), _SimAPIHandler)
+        except OSError as exc:
+            print(f"[serve] Cannot listen on :{args.port}: {exc}")
+            print("[serve] Stop simulation_stub.py or any other process using this port, then run again.")
+            sys.exit(1)
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
         print(f"[serve] HTTP API listening on :{args.port}  (POST /command  GET /state)")
 
         try:
-            if args.demo:
-                sim.run_demo()
-            else:
-                sim.run(external_control=True)
+            sim.run(external_control=True)
         finally:
             server.shutdown()
     elif args.demo:

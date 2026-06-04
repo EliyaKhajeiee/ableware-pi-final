@@ -4,7 +4,7 @@
 server:
   ip: "172.20.10.6"         # IP of the simulation machine on LAN
   hub_port: 8000             # FastAPI command hub (WebSocket + dashboard)
-  sim_port: 8001             # Simulation stub HTTP API
+  sim_port: 8001             # 3D simulation HTTP API
 
 voice:
   wake_word_model: "models/ableware_wakeword.onnx"
