@@ -44,6 +44,7 @@ class VoiceLoop:
         chunk_size: int = 1280,
         listen_timeout_s: float = 3.0,
         bypass_wake_word: bool = False,
+        device=None,            # sounddevice device index/name; None = system default
     ):
         self.wake_detector = wake_detector
         self.recognizer = recognizer
@@ -54,6 +55,7 @@ class VoiceLoop:
         self.listen_timeout_s = listen_timeout_s
         self.bypass_wake_word = bypass_wake_word
 
+        self.device = device
         self._state = VoiceState.IDLE
         self._audio_queue: asyncio.Queue = asyncio.Queue(maxsize=50)
         self._running = False
@@ -84,13 +86,17 @@ class VoiceLoop:
             except asyncio.QueueFull:
                 pass  # Drop chunk if we're behind — better than blocking the stream
 
-        with sd.InputStream(
+        stream_kwargs = dict(
             samplerate=self.sample_rate,
             channels=1,
             dtype="float32",
             blocksize=self.chunk_size,
             callback=_audio_callback,
-        ):
+        )
+        if self.device is not None:
+            stream_kwargs["device"] = self.device
+
+        with sd.InputStream(**stream_kwargs):
             if self.bypass_wake_word:
                 logger.info("Audio stream started. Wake word BYPASSED — listening continuously.")
             else:

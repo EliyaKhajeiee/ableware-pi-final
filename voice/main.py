@@ -92,6 +92,7 @@ async def main(config_path: str) -> None:
         chunk_size=voice_cfg["chunk_size"],
         listen_timeout_s=voice_cfg["listen_timeout_s"],
         bypass_wake_word=bypass_wake_word,
+        device=voice_cfg.get("device"),
     )
 
     logger.info("Loading Vosk ASR model …")
