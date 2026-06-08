@@ -13,7 +13,8 @@ voice:
   listen_timeout_s: 3.0      # Seconds to wait for a command after wake word
   sample_rate: 16000         # Hz — required by both Vosk and OpenWakeWord
   chunk_size: 1280           # Frames per audio chunk (80ms at 16kHz)
-  device: null               # Audio device index (null = system default; try 1 for seeed HAT)
+  device: 1                  # Audio device index (1 = seeed-2mic HAT on Pi; null = system default)
+  channels: 2               # Capture channels (seeed HAT requires 2; mono mic = 1)
 
 actuator:
   stroke_length: 0.0254      # 1 inch in meters

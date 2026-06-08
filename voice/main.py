@@ -93,6 +93,7 @@ async def main(config_path: str) -> None:
         listen_timeout_s=voice_cfg["listen_timeout_s"],
         bypass_wake_word=bypass_wake_word,
         device=voice_cfg.get("device"),
+        channels=voice_cfg.get("channels", 1),
     )
 
     logger.info("Loading Vosk ASR model …")

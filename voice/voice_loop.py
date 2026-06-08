@@ -45,6 +45,7 @@ class VoiceLoop:
         listen_timeout_s: float = 3.0,
         bypass_wake_word: bool = False,
         device=None,            # sounddevice device index/name; None = system default
+        channels: int = 1,     # capture channels; seeed-2mic HAT requires 2 (uses ch0)
     ):
         self.wake_detector = wake_detector
         self.recognizer = recognizer
@@ -56,6 +57,7 @@ class VoiceLoop:
         self.bypass_wake_word = bypass_wake_word
 
         self.device = device
+        self.channels = channels
         self._state = VoiceState.IDLE
         self._audio_queue: asyncio.Queue = asyncio.Queue(maxsize=50)
         self._running = False
@@ -88,7 +90,7 @@ class VoiceLoop:
 
         stream_kwargs = dict(
             samplerate=self.sample_rate,
-            channels=1,
+            channels=self.channels,
             dtype="float32",
             blocksize=self.chunk_size,
             callback=_audio_callback,
