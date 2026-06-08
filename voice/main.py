@@ -94,6 +94,9 @@ async def main(config_path: str) -> None:
         bypass_wake_word=bypass_wake_word,
         device=voice_cfg.get("device"),
         channels=voice_cfg.get("channels", 1),
+        audio_backend=voice_cfg.get("audio_backend", "sounddevice"),
+        arecord_device=voice_cfg.get("arecord_device", "hw:2,0"),
+        arecord_rate=voice_cfg.get("arecord_rate", 44100),
     )
 
     logger.info("Loading Vosk ASR model …")
